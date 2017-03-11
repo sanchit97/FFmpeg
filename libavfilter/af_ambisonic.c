@@ -27,13 +27,11 @@
 
 typedef struct AmbisonicContext {
 	const AVClass *class;
-	/*Not needed, if any new variables are to be used, this struct can be populated(f)*/
-
 } AmbisonicContext;
 
 #define OFFSET(x) offsetof(AmbisonicContext, x)
 
-static const AVOption ambisonic_options[] = {  //square will be an option
+static const AVOption ambisonic_options[] = {
 {NULL}
 };
 
@@ -55,68 +53,52 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
 {
 	AVFilterContext *ctx = inlink->dst;
 	AVFilterLink *outlink = ctx->outputs[0];
-	/*If variables used, this has to be created*/
-	// AmbisonicContext *s = ctx->priv;
-	// const float *src = (const float *)in->data[0];
-	// float *dst;
 	AVFrame *out;
 	int itr;
-	float *w,*x,*y;
-	float root8= sqrt(8);
+	float *w,*x,*y,*c1,*c2,*c3,*c4;
+	float root8 = sqrt(8);
 	float lf=0,lb=0,rb=0,rf=0;
-
-	if (av_frame_is_writable(in))
-	{
+	if (av_frame_is_writable(in)) {
 		out = in;
-	}
-	else
-	{
+	} else {
 		out = ff_get_audio_buffer(inlink, in->nb_samples);
-		if (!out)
-		{
+		if (!out){
 			av_frame_free(&in);
 			return AVERROR(ENOMEM);
 		}
 		av_frame_copy_props(out, in);
 	}
-
-	/*If planar samples are used, output must be put in dst*/
-	//dst = (float *)out->data[0];
-
 	w=(float *)in->extended_data[0];
 	x=(float *)in->extended_data[1];
 	y=(float *)in->extended_data[2];
 
-	for(itr=0;itr<in->nb_samples;itr++)
-	{
-		/*Float pointers to the samples*/
+	c1=(float *)out->extended_data[0];
+	c2=(float *)out->extended_data[1];
+	c3=(float *)out->extended_data[2];
+	c4=(float *)out->extended_data[3];
 
+	for(itr=0;itr<in->nb_samples;itr++){
 		lf = root8 * (2*(w[itr])+x[itr]+y[itr]);
 		lb = root8 * (2*(w[itr])-x[itr]+y[itr]);
 		rb = root8 * (2*(w[itr])-x[itr]-y[itr]);
 		rf = root8 * (2*(w[itr])+x[itr]-y[itr]);
-
-		out->extended_data[0][itr]= lf;
-		out->extended_data[1][itr]= lb;
-		out->extended_data[2][itr]= rb;
-		out->extended_data[3][itr]= rf;
+		c1[itr] = lf;
+		c2[itr] = rf;
+		c3[itr] = lb;
+		c4[itr] = rb;
 	}
-
 	if (out != in)
 	av_frame_free(&in);
 	return ff_filter_frame(outlink, out);
 }
-
 static const AVFilterPad inputs[] = {
 	{
 	.name    = "default",
 	.type    = AVMEDIA_TYPE_AUDIO,
 	.filter_frame = filter_frame,
-	// .config_props = config_input,
 	},
 	{ NULL }
 };
-
 static const AVFilterPad outputs[] = {
 	{
 	.name = "default",
@@ -124,14 +106,12 @@ static const AVFilterPad outputs[] = {
 	},
 	{ NULL }
 };
-
 AVFilter ff_af_ambisonic = {
 	.name      = "ambisonic",
 	.description    = NULL_IF_CONFIG_SMALL("An ambisonic filter"),
 	.query_formats  = query_formats,
 	.priv_size    = sizeof(AmbisonicContext),
 	.priv_class  = &ambisonic_class,
-	// .uninit   = uninit,
 	.inputs  = inputs,
 	.outputs    = outputs,
 };
