@@ -26,7 +26,6 @@ version <next>:
 - native Opus encoder
 - ScreenPressor decoder
 - incomplete ClearVideo decoder
-- Ambisonic Decoder
 
 version 3.2:
 - libopenmpt demuxer
