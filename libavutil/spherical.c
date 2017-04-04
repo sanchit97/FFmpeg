@@ -33,7 +33,7 @@ AVSphericalMapping *av_spherical_alloc(size_t *size)
     return spherical;
 }
 
-void av_spherical_tile_bounds(AVSphericalMapping *map,
+void av_spherical_tile_bounds(const AVSphericalMapping *map,
                               size_t width, size_t height,
                               size_t *left, size_t *top,
                               size_t *right, size_t *bottom)
@@ -49,4 +49,31 @@ void av_spherical_tile_bounds(AVSphericalMapping *map,
     *top    = (orig_height * map->bound_top  + UINT32_MAX - 1) / UINT32_MAX;
     *right  = orig_width  - width  - *left;
     *bottom = orig_height - height - *top;
+}
+
+static const char *spherical_projection_names[] = {
+    [AV_SPHERICAL_EQUIRECTANGULAR]      = "equirectangular",
+    [AV_SPHERICAL_CUBEMAP]              = "cubemap",
+    [AV_SPHERICAL_EQUIRECTANGULAR_TILE] = "tiled equirectangular",
+};
+
+const char *av_spherical_projection_name(enum AVSphericalProjection projection)
+{
+    if ((unsigned)projection >= FF_ARRAY_ELEMS(spherical_projection_names))
+        return "unknown";
+
+    return spherical_projection_names[projection];
+}
+
+int av_spherical_from_name(const char *name)
+{
+    int i;
+
+    for (i = 0; i < FF_ARRAY_ELEMS(spherical_projection_names); i++) {
+        size_t len = strlen(spherical_projection_names[i]);
+        if (!strncmp(spherical_projection_names[i], name, len))
+            return i;
+    }
+
+    return -1;
 }

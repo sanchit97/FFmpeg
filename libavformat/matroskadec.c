@@ -1616,7 +1616,7 @@ static void matroska_execute_seekhead(MatroskaDemuxContext *matroska)
     int i;
 
     // we should not do any seeking in the streaming case
-    if (!matroska->ctx->pb->seekable)
+    if (!(matroska->ctx->pb->seekable & AVIO_SEEKABLE_NORMAL))
         return;
 
     for (i = 0; i < seekhead_list->nb_elem; i++) {
@@ -1913,8 +1913,8 @@ static int mkv_parse_video_projection(AVStream *st, const MatroskaTrack *track) 
     AVSphericalMapping *spherical;
     enum AVSphericalProjection projection;
     size_t spherical_size;
-    size_t l = 0, t = 0, r = 0, b = 0;
-    size_t padding = 0;
+    uint32_t l = 0, t = 0, r = 0, b = 0;
+    uint32_t padding = 0;
     int ret;
     GetByteContext gb;
 
@@ -1939,8 +1939,7 @@ static int mkv_parse_video_projection(AVStream *st, const MatroskaTrack *track) 
             if (b >= UINT_MAX - t || r >= UINT_MAX - l) {
                 av_log(NULL, AV_LOG_ERROR,
                        "Invalid bounding rectangle coordinates "
-                       "%"SIZE_SPECIFIER",%"SIZE_SPECIFIER","
-                       "%"SIZE_SPECIFIER",%"SIZE_SPECIFIER"\n",
+                       "%"PRIu32",%"PRIu32",%"PRIu32",%"PRIu32"\n",
                        l, t, r, b);
                 return AVERROR_INVALIDDATA;
             }
@@ -2213,12 +2212,9 @@ static int matroska_parse_tracks(AVFormatContext *s)
                 fourcc = MKTAG('S','V','Q','3');
                 codec_id = ff_codec_get_id(ff_codec_movvideo_tags, fourcc);
             }
-            if (codec_id == AV_CODEC_ID_NONE) {
-                char buf[32];
-                av_get_codec_tag_string(buf, sizeof(buf), fourcc);
+            if (codec_id == AV_CODEC_ID_NONE)
                 av_log(matroska->ctx, AV_LOG_ERROR,
-                       "mov FourCC not found %s.\n", buf);
-            }
+                       "mov FourCC not found %s.\n", av_fourcc2str(fourcc));
             if (track->codec_priv.size >= 86) {
                 bit_depth = AV_RB16(track->codec_priv.data + 82);
                 ffio_init_context(&b, track->codec_priv.data,
@@ -2552,10 +2548,9 @@ static int matroska_read_header(AVFormatContext *s)
         ebml.max_size        > sizeof(uint64_t)  ||
         ebml.id_length       > sizeof(uint32_t)  ||
         ebml.doctype_version > 3) {
-        av_log(matroska->ctx, AV_LOG_ERROR,
-               "EBML header using unsupported features\n"
-               "(EBML version %"PRIu64", doctype %s, doc version %"PRIu64")\n",
-               ebml.version, ebml.doctype, ebml.doctype_version);
+        avpriv_report_missing_feature(matroska->ctx,
+                                      "EBML version %"PRIu64", doctype %s, doc version %"PRIu64,
+                                      ebml.version, ebml.doctype, ebml.doctype_version);
         ebml_free(ebml_syntax, &ebml);
         return AVERROR_PATCHWELCOME;
     } else if (ebml.doctype_version == 3) {

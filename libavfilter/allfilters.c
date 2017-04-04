@@ -80,7 +80,6 @@ static void register_all(void)
     REGISTER_FILTER(ASPLIT,         asplit,         af);
     REGISTER_FILTER(ASTATS,         astats,         af);
     REGISTER_FILTER(ASTREAMSELECT,  astreamselect,  af);
-    REGISTER_FILTER(ASYNCTS,        asyncts,        af);
     REGISTER_FILTER(ATEMPO,         atempo,         af);
     REGISTER_FILTER(ATRIM,          atrim,          af);
     REGISTER_FILTER(AZMQ,           azmq,           af);
@@ -168,6 +167,7 @@ static void register_all(void)
     REGISTER_FILTER(DEBAND,         deband,         vf);
     REGISTER_FILTER(DECIMATE,       decimate,       vf);
     REGISTER_FILTER(DEFLATE,        deflate,        vf);
+    REGISTER_FILTER(DEINTERLACE_QSV,deinterlace_qsv,vf);
     REGISTER_FILTER(DEINTERLACE_VAAPI, deinterlace_vaapi, vf);
     REGISTER_FILTER(DEJUDDER,       dejudder,       vf);
     REGISTER_FILTER(DELOGO,         delogo,         vf);
@@ -210,6 +210,7 @@ static void register_all(void)
     REGISTER_FILTER(HSTACK,         hstack,         vf);
     REGISTER_FILTER(HUE,            hue,            vf);
     REGISTER_FILTER(HWDOWNLOAD,     hwdownload,     vf);
+    REGISTER_FILTER(HWMAP,          hwmap,          vf);
     REGISTER_FILTER(HWUPLOAD,       hwupload,       vf);
     REGISTER_FILTER(HWUPLOAD_CUDA,  hwupload_cuda,  vf);
     REGISTER_FILTER(HYSTERESIS,     hysteresis,     vf);
@@ -272,6 +273,7 @@ static void register_all(void)
     REGISTER_FILTER(SAB,            sab,            vf);
     REGISTER_FILTER(SCALE,          scale,          vf);
     REGISTER_FILTER(SCALE_NPP,      scale_npp,      vf);
+    REGISTER_FILTER(SCALE_QSV,      scale_qsv,      vf);
     REGISTER_FILTER(SCALE_VAAPI,    scale_vaapi,    vf);
     REGISTER_FILTER(SCALE2REF,      scale2ref,      vf);
     REGISTER_FILTER(SELECT,         select,         vf);
@@ -289,6 +291,7 @@ static void register_all(void)
     REGISTER_FILTER(SHUFFLEPLANES,  shuffleplanes,  vf);
     REGISTER_FILTER(SIDEDATA,       sidedata,       vf);
     REGISTER_FILTER(SIGNALSTATS,    signalstats,    vf);
+    REGISTER_FILTER(SIGNATURE,      signature,      vf);
     REGISTER_FILTER(SMARTBLUR,      smartblur,      vf);
     REGISTER_FILTER(SOBEL,          sobel,          vf);
     REGISTER_FILTER(SPLIT,          split,          vf);
