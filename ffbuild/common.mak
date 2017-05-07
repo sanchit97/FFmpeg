@@ -2,9 +2,6 @@
 # common bits used by all libraries
 #
 
-# first so "all" becomes default target
-all: all-yes
-
 DEFAULT_YASMD=.dbg
 
 ifeq ($(DBG),1)
@@ -92,7 +89,7 @@ COMPILE_HOSTC = $(call COMPILE,HOSTCC)
 %.h.c:
 	$(Q)echo '#include "$*.h"' >$@
 
-%.c %.h %.ver: TAG = GEN
+%.c %.h %.pc %.ver %.version: TAG = GEN
 
 # Dummy rule to stop make trying to rebuild removed or renamed headers
 %.h:
@@ -106,7 +103,7 @@ COMPILE_HOSTC = $(call COMPILE,HOSTCC)
 $(OBJS):
 endif
 
-include $(SRC_PATH)/arch.mak
+include $(SRC_PATH)/ffbuild/arch.mak
 
 OBJS      += $(OBJS-yes)
 SLIBOBJS  += $(SLIBOBJS-yes)
@@ -136,6 +133,7 @@ ALLHEADERS := $(subst $(SRC_DIR)/,$(SUBDIR),$(wildcard $(SRC_DIR)/*.h $(SRC_DIR)
 SKIPHEADERS += $(ARCH_HEADERS:%=$(ARCH)/%) $(SKIPHEADERS-)
 SKIPHEADERS := $(SKIPHEADERS:%=$(SUBDIR)%)
 HOBJS        = $(filter-out $(SKIPHEADERS:.h=.h.o),$(ALLHEADERS:.h=.h.o))
+$(HOBJS):     CCFLAGS += $(CFLAGS_HEADERS)
 checkheaders: $(HOBJS)
 .SECONDARY:   $(HOBJS:.o=.c)
 
@@ -145,7 +143,7 @@ $(HOSTOBJS): %.o: %.c
 	$(COMPILE_HOSTC)
 
 $(HOSTPROGS): %$(HOSTEXESUF): %.o
-	$(HOSTLD) $(HOSTLDFLAGS) $(HOSTLD_O) $^ $(HOSTLIBS)
+	$(HOSTLD) $(HOSTLDFLAGS) $(HOSTLD_O) $^ $(HOSTEXTRALIBS)
 
 $(OBJS):     | $(sort $(dir $(OBJS)))
 $(HOBJS):    | $(sort $(dir $(HOBJS)))
@@ -156,7 +154,7 @@ $(TOOLOBJS): | tools
 
 OBJDIRS := $(OBJDIRS) $(dir $(OBJS) $(HOBJS) $(HOSTOBJS) $(SLIBOBJS) $(TESTOBJS))
 
-CLEANSUFFIXES     = *.d *.o *~ *.h.c *.gcda *.gcno *.map *.ver *.ho *$(DEFAULT_YASMD).asm
+CLEANSUFFIXES     = *.d *.o *~ *.h.c *.gcda *.gcno *.map *.ver *.version *.ho *$(DEFAULT_YASMD).asm
 DISTCLEANSUFFIXES = *.pc
 LIBSUFFIXES       = *.a *.lib *.so *.so.* *.dylib *.dll *.def *.dll.a
 

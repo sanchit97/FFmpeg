@@ -85,7 +85,7 @@ fate-filter-lavd-scalenorm: tests/data/filtergraphs/scalenorm
 fate-filter-lavd-scalenorm: CMD = framecrc -f lavfi -graph_file $(TARGET_PATH)/tests/data/filtergraphs/scalenorm -i dummy
 
 
-FATE_FILTER-$(call ALLYES FRAMERATE_FILTER TESTSRC2_FILTER) += fate-filter-framerate-up fate-filter-framerate-down
+FATE_FILTER-$(call ALLYES, FRAMERATE_FILTER TESTSRC2_FILTER) += fate-filter-framerate-up fate-filter-framerate-down
 fate-filter-framerate-up: CMD = framecrc -lavfi testsrc2=r=2:d=10,framerate=fps=10 -t 1
 fate-filter-framerate-down: CMD = framecrc -lavfi testsrc2=r=2:d=10,framerate=fps=1 -t 1
 
@@ -122,6 +122,9 @@ fate-filter-hqdn3d: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf hqdn3d
 
 FATE_FILTER_VSYNTH-$(CONFIG_INTERLACE_FILTER) += fate-filter-interlace
 fate-filter-interlace: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf interlace
+
+FATE_FILTER_VSYNTH-$(CONFIG_INTERLACE_FILTER) += fate-filter-interlace-complex
+fate-filter-interlace-complex: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf interlace=lowpass=complex
 
 FATE_FILTER_VSYNTH-$(call ALLYES, NEGATE_FILTER PERMS_FILTER) += fate-filter-negate
 fate-filter-negate: CMD = framecrc -c:v pgmyuv -i $(SRC) -vf perms=random,negate

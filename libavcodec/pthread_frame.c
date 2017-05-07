@@ -509,8 +509,8 @@ int ff_thread_decode_frame(AVCodecContext *avctx,
     /*
      * Return the next available frame from the oldest thread.
      * If we're at the end of the stream, then we have to skip threads that
-     * didn't output a frame, because we don't want to accidentally signal
-     * EOF (avpkt->size == 0 && *got_picture_ptr == 0).
+     * didn't output a frame/error, because we don't want to accidentally signal
+     * EOF (avpkt->size == 0 && *got_picture_ptr == 0 && err >= 0).
      */
 
     do {
@@ -526,20 +526,19 @@ int ff_thread_decode_frame(AVCodecContext *avctx,
         av_frame_move_ref(picture, p->frame);
         *got_picture_ptr = p->got_frame;
         picture->pkt_dts = p->avpkt.dts;
-
-        if (p->result < 0)
-            err = p->result;
+        err = p->result;
 
         /*
          * A later call with avkpt->size == 0 may loop over all threads,
-         * including this one, searching for a frame to return before being
+         * including this one, searching for a frame/error to return before being
          * stopped by the "finished != fctx->next_finished" condition.
-         * Make sure we don't mistakenly return the same frame again.
+         * Make sure we don't mistakenly return the same frame/error again.
          */
         p->got_frame = 0;
+        p->result = 0;
 
         if (finished >= avctx->thread_count) finished = 0;
-    } while (!avpkt->size && !*got_picture_ptr && finished != fctx->next_finished);
+    } while (!avpkt->size && !*got_picture_ptr && err >= 0 && finished != fctx->next_finished);
 
     update_context_from_thread(avctx, p->avctx, 1);
 
@@ -564,12 +563,12 @@ void ff_thread_report_progress(ThreadFrame *f, int n, int field)
         atomic_load_explicit(&progress[field], memory_order_relaxed) >= n)
         return;
 
-    p = f->owner->internal->thread_ctx;
-
-    if (f->owner->debug&FF_DEBUG_THREADS)
-        av_log(f->owner, AV_LOG_DEBUG, "%p finished %d field %d\n", progress, n, field);
+    p = f->owner[field]->internal->thread_ctx;
 
     pthread_mutex_lock(&p->progress_mutex);
+    if (f->owner[field]->debug&FF_DEBUG_THREADS)
+        av_log(f->owner[field], AV_LOG_DEBUG,
+               "%p finished %d field %d\n", progress, n, field);
 
     atomic_store_explicit(&progress[field], n, memory_order_release);
 
@@ -586,12 +585,12 @@ void ff_thread_await_progress(ThreadFrame *f, int n, int field)
         atomic_load_explicit(&progress[field], memory_order_acquire) >= n)
         return;
 
-    p = f->owner->internal->thread_ctx;
-
-    if (f->owner->debug&FF_DEBUG_THREADS)
-        av_log(f->owner, AV_LOG_DEBUG, "thread awaiting %d field %d from %p\n", n, field, progress);
+    p = f->owner[field]->internal->thread_ctx;
 
     pthread_mutex_lock(&p->progress_mutex);
+    if (f->owner[field]->debug&FF_DEBUG_THREADS)
+        av_log(f->owner[field], AV_LOG_DEBUG,
+               "thread awaiting %d field %d from %p\n", n, field, progress);
     while (atomic_load_explicit(&progress[field], memory_order_relaxed) < n)
         pthread_cond_wait(&p->progress_cond, &p->progress_mutex);
     pthread_mutex_unlock(&p->progress_mutex);
@@ -800,7 +799,7 @@ int ff_frame_thread_init(AVCodecContext *avctx)
         }
         *copy->internal = *src->internal;
         copy->internal->thread_ctx = p;
-        copy->internal->pkt = &p->avpkt;
+        copy->internal->last_pkt_props = &p->avpkt;
 
         if (!i) {
             src = copy;
@@ -859,6 +858,7 @@ void ff_thread_flush(AVCodecContext *avctx)
         // Make sure decode flush calls with size=0 won't return old frames
         p->got_frame = 0;
         av_frame_unref(p->frame);
+        p->result = 0;
 
         release_delayed_buffers(p);
 
@@ -882,7 +882,7 @@ static int thread_get_buffer_internal(AVCodecContext *avctx, ThreadFrame *f, int
     PerThreadContext *p = avctx->internal->thread_ctx;
     int err;
 
-    f->owner = avctx;
+    f->owner[0] = f->owner[1] = avctx;
 
     ff_init_buffer_info(avctx, f->f);
 
@@ -986,7 +986,7 @@ void ff_thread_release_buffer(AVCodecContext *avctx, ThreadFrame *f)
         av_log(avctx, AV_LOG_DEBUG, "thread_release_buffer called on pic %p\n", f);
 
     av_buffer_unref(&f->progress);
-    f->owner    = NULL;
+    f->owner[0] = f->owner[1] = NULL;
 
     if (can_direct_free) {
         av_frame_unref(f->f);

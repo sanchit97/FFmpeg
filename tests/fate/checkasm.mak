@@ -2,6 +2,7 @@ FATE_CHECKASM = fate-checkasm-alacdsp                                   \
                 fate-checkasm-audiodsp                                  \
                 fate-checkasm-blockdsp                                  \
                 fate-checkasm-bswapdsp                                  \
+                fate-checkasm-fixed_dsp                                 \
                 fate-checkasm-flacdsp                                   \
                 fate-checkasm-fmtconvert                                \
                 fate-checkasm-h264dsp                                   \
@@ -24,5 +25,5 @@ $(FATE_CHECKASM): tests/checkasm/checkasm$(EXESUF)
 $(FATE_CHECKASM): CMD = run tests/checkasm/checkasm --test=$(@:fate-checkasm-%=%)
 $(FATE_CHECKASM): REF = /dev/null
 
-FATE += $(FATE_CHECKASM)
+FATE-$(CONFIG_STATIC) += $(FATE_CHECKASM)
 fate-checkasm: $(FATE_CHECKASM)

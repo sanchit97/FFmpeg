@@ -1,6 +1,5 @@
-include $(SUBDIR)../config.mak
-
 NAME = avformat
+DESC = FFmpeg container format library
 
 HEADERS = avformat.h                                                    \
           avio.h                                                        \
@@ -55,6 +54,7 @@ OBJS-$(CONFIG_RTPDEC)                    += rdt.o                       \
                                             rtpdec_qcelp.o              \
                                             rtpdec_qdm2.o               \
                                             rtpdec_qt.o                 \
+                                            rtpdec_rfc4175.o            \
                                             rtpdec_svq3.o               \
                                             rtpdec_vc2hq.o              \
                                             rtpdec_vp8.o                \
@@ -106,7 +106,6 @@ OBJS-$(CONFIG_AU_DEMUXER)                += au.o pcm.o
 OBJS-$(CONFIG_AU_MUXER)                  += au.o rawenc.o
 OBJS-$(CONFIG_AVI_DEMUXER)               += avidec.o
 OBJS-$(CONFIG_AVI_MUXER)                 += avienc.o mpegtsenc.o avlanguage.o rawutils.o
-OBJS-$(CONFIG_AVISYNTH_DEMUXER)          += avisynth.o
 OBJS-$(CONFIG_AVM2_MUXER)                += swfenc.o swf.o
 OBJS-$(CONFIG_AVR_DEMUXER)               += avr.o pcm.o
 OBJS-$(CONFIG_AVS_DEMUXER)               += avs.o voc_packet.o vocdec.o voc.o
@@ -533,6 +532,7 @@ OBJS-$(CONFIG_YUV4MPEGPIPE_DEMUXER)      += yuv4mpegdec.o
 OBJS-$(CONFIG_YUV4MPEGPIPE_MUXER)        += yuv4mpegenc.o
 
 # external libraries
+OBJS-$(CONFIG_AVISYNTH_DEMUXER)          += avisynth.o
 OBJS-$(CONFIG_CHROMAPRINT_MUXER)         += chromaprint.o
 OBJS-$(CONFIG_LIBGME_DEMUXER)            += libgme.o
 OBJS-$(CONFIG_LIBMODPLUG_DEMUXER)        += libmodplug.o

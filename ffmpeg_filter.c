@@ -678,6 +678,21 @@ int configure_output_filter(FilterGraph *fg, OutputFilter *ofilter, AVFilterInOu
     }
 }
 
+void check_filter_outputs(void)
+{
+    int i;
+    for (i = 0; i < nb_filtergraphs; i++) {
+        int n;
+        for (n = 0; n < filtergraphs[i]->nb_outputs; n++) {
+            OutputFilter *output = filtergraphs[i]->outputs[n];
+            if (!output->ost) {
+                av_log(NULL, AV_LOG_FATAL, "Filter %s has an unconnected output\n", output->name);
+                exit_program(1);
+            }
+        }
+    }
+}
+
 static int sub2video_prepare(InputStream *ist, InputFilter *ifilter)
 {
     AVFormatContext *avf = input_files[ist->file_index]->ctx;
@@ -1162,7 +1177,7 @@ int ifilter_parameters_from_frame(InputFilter *ifilter, const AVFrame *frame)
     ifilter->sample_aspect_ratio = frame->sample_aspect_ratio;
 
     ifilter->sample_rate         = frame->sample_rate;
-    ifilter->channels            = av_frame_get_channels(frame);
+    ifilter->channels            = frame->channels;
     ifilter->channel_layout      = frame->channel_layout;
 
     if (frame->hw_frames_ctx) {

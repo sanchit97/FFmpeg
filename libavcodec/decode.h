@@ -1,4 +1,6 @@
 /*
+ * generic decoding-related code
+ *
  * This file is part of FFmpeg.
  *
  * FFmpeg is free software; you can redistribute it and/or
@@ -16,19 +18,22 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-int plan9_main(int argc, char **argv);
+#ifndef AVCODEC_DECODE_H
+#define AVCODEC_DECODE_H
 
-#undef main
-int main(int argc, char **argv)
-{
-    /* The setfcr() function in lib9 is broken, must use asm. */
-#ifdef __i386
-    short fcr;
-    __asm__ volatile ("fstcw        %0 \n"
-                      "or      $63, %0 \n"
-                      "fldcw        %0 \n"
-                      : "=m"(fcr));
-#endif
+#include "avcodec.h"
 
-    return plan9_main(argc, argv);
-}
+/**
+ * Called by decoders to get the next packet for decoding.
+ *
+ * @param pkt An empty packet to be filled with data.
+ * @return 0 if a new reference has been successfully written to pkt
+ *         AVERROR(EAGAIN) if no data is currently available
+ *         AVERROR_EOF if and end of stream has been reached, so no more data
+ *                     will be available
+ */
+int ff_decode_get_packet(AVCodecContext *avctx, AVPacket *pkt);
+
+void ff_decode_bsfs_uninit(AVCodecContext *avctx);
+
+#endif /* AVCODEC_DECODE_H */

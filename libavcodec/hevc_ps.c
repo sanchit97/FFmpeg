@@ -568,11 +568,11 @@ static void decode_vui(GetBitContext *gb, AVCodecContext *avctx,
             vui->matrix_coeffs           = get_bits(gb, 8);
 
             // Set invalid values to "unspecified"
-            if (vui->colour_primaries >= AVCOL_PRI_NB)
+            if (!av_color_primaries_name(vui->colour_primaries))
                 vui->colour_primaries = AVCOL_PRI_UNSPECIFIED;
-            if (vui->transfer_characteristic >= AVCOL_TRC_NB)
+            if (!av_color_transfer_name(vui->transfer_characteristic))
                 vui->transfer_characteristic = AVCOL_TRC_UNSPECIFIED;
-            if (vui->matrix_coeffs >= AVCOL_SPC_NB)
+            if (!av_color_space_name(vui->matrix_coeffs))
                 vui->matrix_coeffs = AVCOL_SPC_UNSPECIFIED;
             if (vui->matrix_coeffs == AVCOL_SPC_RGB) {
                 switch (sps->pix_fmt) {
@@ -1664,4 +1664,27 @@ int ff_hevc_decode_nal_pps(GetBitContext *gb, AVCodecContext *avctx,
 err:
     av_buffer_unref(&pps_buf);
     return ret;
+}
+
+int ff_hevc_compute_poc(const HEVCSPS *sps, int pocTid0, int poc_lsb, int nal_unit_type)
+{
+    int max_poc_lsb  = 1 << sps->log2_max_poc_lsb;
+    int prev_poc_lsb = pocTid0 % max_poc_lsb;
+    int prev_poc_msb = pocTid0 - prev_poc_lsb;
+    int poc_msb;
+
+    if (poc_lsb < prev_poc_lsb && prev_poc_lsb - poc_lsb >= max_poc_lsb / 2)
+        poc_msb = prev_poc_msb + max_poc_lsb;
+    else if (poc_lsb > prev_poc_lsb && poc_lsb - prev_poc_lsb > max_poc_lsb / 2)
+        poc_msb = prev_poc_msb - max_poc_lsb;
+    else
+        poc_msb = prev_poc_msb;
+
+    // For BLA picture types, POCmsb is set to 0.
+    if (nal_unit_type == HEVC_NAL_BLA_W_LP   ||
+        nal_unit_type == HEVC_NAL_BLA_W_RADL ||
+        nal_unit_type == HEVC_NAL_BLA_N_LP)
+        poc_msb = 0;
+
+    return poc_msb + poc_lsb;
 }

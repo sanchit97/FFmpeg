@@ -1,6 +1,5 @@
-include $(SUBDIR)../config.mak
-
 NAME = avfilter
+DESC = FFmpeg audio/video filtering library
 
 HEADERS = avfilter.h                                                    \
           avfiltergraph.h                                               \
@@ -156,6 +155,7 @@ OBJS-$(CONFIG_DCTDNOIZ_FILTER)               += vf_dctdnoiz.o
 OBJS-$(CONFIG_DEBAND_FILTER)                 += vf_deband.o
 OBJS-$(CONFIG_DECIMATE_FILTER)               += vf_decimate.o
 OBJS-$(CONFIG_DEFLATE_FILTER)                += vf_neighbor.o
+OBJS-$(CONFIG_DEFLICKER_FILTER)              += vf_deflicker.o
 OBJS-$(CONFIG_DEINTERLACE_QSV_FILTER)        += vf_deinterlace_qsv.o
 OBJS-$(CONFIG_DEINTERLACE_VAAPI_FILTER)      += vf_deinterlace_vaapi.o
 OBJS-$(CONFIG_DEJUDDER_FILTER)               += vf_dejudder.o
@@ -164,6 +164,7 @@ OBJS-$(CONFIG_DESHAKE_FILTER)                += vf_deshake.o
 OBJS-$(CONFIG_DETELECINE_FILTER)             += vf_detelecine.o
 OBJS-$(CONFIG_DILATION_FILTER)               += vf_neighbor.o
 OBJS-$(CONFIG_DISPLACE_FILTER)               += vf_displace.o framesync.o
+OBJS-$(CONFIG_DOUBLEWEAVE_FILTER)            += vf_weave.o
 OBJS-$(CONFIG_DRAWBOX_FILTER)                += vf_drawbox.o
 OBJS-$(CONFIG_DRAWGRAPH_FILTER)              += f_drawgraph.o
 OBJS-$(CONFIG_DRAWGRID_FILTER)               += vf_drawbox.o
@@ -211,6 +212,7 @@ OBJS-$(CONFIG_INTERLEAVE_FILTER)             += f_interleave.o
 OBJS-$(CONFIG_KERNDEINT_FILTER)              += vf_kerndeint.o
 OBJS-$(CONFIG_LENSCORRECTION_FILTER)         += vf_lenscorrection.o
 OBJS-$(CONFIG_LOOP_FILTER)                   += f_loop.o
+OBJS-$(CONFIG_LUMAKEY_FILTER)                += vf_lumakey.o
 OBJS-$(CONFIG_LUT_FILTER)                    += vf_lut.o
 OBJS-$(CONFIG_LUT2_FILTER)                   += vf_lut2.o framesync.o
 OBJS-$(CONFIG_LUT3D_FILTER)                  += vf_lut3d.o
@@ -234,6 +236,7 @@ OBJS-$(CONFIG_NULL_FILTER)                   += vf_null.o
 OBJS-$(CONFIG_OCR_FILTER)                    += vf_ocr.o
 OBJS-$(CONFIG_OCV_FILTER)                    += vf_libopencv.o
 OBJS-$(CONFIG_OPENCL)                        += deshake_opencl.o unsharp_opencl.o
+OBJS-$(CONFIG_OSCILLOSCOPE_FILTER)           += vf_datascope.o
 OBJS-$(CONFIG_OVERLAY_FILTER)                += vf_overlay.o dualinput.o framesync.o
 OBJS-$(CONFIG_OWDENOISE_FILTER)              += vf_owdenoise.o
 OBJS-$(CONFIG_PAD_FILTER)                    += vf_pad.o
@@ -243,6 +246,7 @@ OBJS-$(CONFIG_PERMS_FILTER)                  += f_perms.o
 OBJS-$(CONFIG_PERSPECTIVE_FILTER)            += vf_perspective.o
 OBJS-$(CONFIG_PHASE_FILTER)                  += vf_phase.o
 OBJS-$(CONFIG_PIXDESCTEST_FILTER)            += vf_pixdesctest.o
+OBJS-$(CONFIG_PIXSCOPE_FILTER)               += vf_datascope.o
 OBJS-$(CONFIG_PP_FILTER)                     += vf_pp.o
 OBJS-$(CONFIG_PP7_FILTER)                    += vf_pp7.o
 OBJS-$(CONFIG_PREMULTIPLY_FILTER)            += vf_premultiply.o framesync.o

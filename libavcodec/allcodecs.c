@@ -258,6 +258,7 @@ static void register_all(void)
     REGISTER_DECODER(MPEG2_CRYSTALHD,   mpeg2_crystalhd);
     REGISTER_DECODER(MPEG2_QSV,         mpeg2_qsv);
     REGISTER_DECODER(MSA1,              msa1);
+    REGISTER_DECODER(MSCC,              mscc);
     REGISTER_DECODER(MSMPEG4V1,         msmpeg4v1);
     REGISTER_ENCDEC (MSMPEG4V2,         msmpeg4v2);
     REGISTER_ENCDEC (MSMPEG4V3,         msmpeg4v3);
@@ -316,6 +317,7 @@ static void register_all(void)
     REGISTER_ENCDEC (SNOW,              snow);
     REGISTER_DECODER(SP5X,              sp5x);
     REGISTER_DECODER(SPEEDHQ,           speedhq);
+    REGISTER_DECODER(SRGC,              srgc);
     REGISTER_ENCDEC (SUNRAST,           sunrast);
     REGISTER_ENCDEC (SVQ1,              svq1);
     REGISTER_DECODER(SVQ3,              svq3);
@@ -363,6 +365,7 @@ static void register_all(void)
     REGISTER_DECODER(VP8,               vp8);
     REGISTER_DECODER(VP9,               vp9);
     REGISTER_DECODER(VQA,               vqa);
+    REGISTER_DECODER(BITPACKED,         bitpacked);
     REGISTER_DECODER(WEBP,              webp);
     REGISTER_ENCODER(WRAPPED_AVFRAME,   wrapped_avframe);
     REGISTER_ENCDEC (WMV1,              wmv1);

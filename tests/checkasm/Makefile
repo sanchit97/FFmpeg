@@ -29,6 +29,9 @@ AVFILTEROBJS-$(CONFIG_COLORSPACE_FILTER) += vf_colorspace.o
 
 CHECKASMOBJS-$(CONFIG_AVFILTER) += $(AVFILTEROBJS-yes)
 
+AVUTILOBJS                              += fixed_dsp.o
+
+CHECKASMOBJS-$(CONFIG_AVUTIL)  += $(AVUTILOBJS)
 
 CHECKASMOBJS-$(ARCH_AARCH64)            += aarch64/checkasm.o
 CHECKASMOBJS-$(HAVE_ARMV5TE_EXTERNAL)   += arm/checkasm.o
@@ -47,7 +50,7 @@ tests/checkasm/checkasm.o: CFLAGS += -Umain
 
 CHECKASM := tests/checkasm/checkasm$(EXESUF)
 
-$(CHECKASM): $(EXEOBJS) $(CHECKASMOBJS) $(FF_STATIC_DEP_LIBS)
+$(CHECKASM): $(CHECKASMOBJS) $(FF_STATIC_DEP_LIBS)
 	$(LD) $(LDFLAGS) $(LDEXEFLAGS) $(LD_O) $(CHECKASMOBJS) $(FF_STATIC_DEP_LIBS) $(EXTRALIBS)
 
 checkasm: $(CHECKASM)

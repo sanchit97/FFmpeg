@@ -622,8 +622,9 @@ static int decode_idat_chunk(AVCodecContext *avctx, PNGDecContext *s,
     }
     if (!(s->pic_state & PNG_IDAT)) {
         /* init image info */
-        avctx->width  = s->width;
-        avctx->height = s->height;
+        ret = ff_set_dimensions(avctx, s->width, s->height);
+        if (ret < 0)
+            return ret;
 
         s->channels       = ff_png_get_nb_channels(s->color_type);
         s->bits_per_pixel = s->bit_depth * s->channels;
@@ -1171,7 +1172,7 @@ static int decode_frame_common(AVCodecContext *avctx, PNGDecContext *s,
             }
         }
 
-        metadatap = avpriv_frame_get_metadatap(p);
+        metadatap = &p->metadata;
         switch (tag) {
         case MKTAG('I', 'H', 'D', 'R'):
             if ((ret = decode_ihdr_chunk(avctx, s, length)) < 0)

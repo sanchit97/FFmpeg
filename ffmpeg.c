@@ -482,7 +482,7 @@ static void ffmpeg_cleanup(int ret)
                                      sizeof(frame), NULL);
                 av_frame_free(&frame);
             }
-            av_fifo_free(fg->inputs[j]->frame_queue);
+            av_fifo_freep(&fg->inputs[j]->frame_queue);
             if (fg->inputs[j]->ist->sub2video.sub_queue) {
                 while (av_fifo_size(fg->inputs[j]->ist->sub2video.sub_queue)) {
                     AVSubtitle sub;
@@ -490,7 +490,7 @@ static void ffmpeg_cleanup(int ret)
                                          &sub, sizeof(sub), NULL);
                     avsubtitle_free(&sub);
                 }
-                av_fifo_free(fg->inputs[j]->ist->sub2video.sub_queue);
+                av_fifo_freep(&fg->inputs[j]->ist->sub2video.sub_queue);
             }
             av_buffer_unref(&fg->inputs[j]->hw_frames_ctx);
             av_freep(&fg->inputs[j]->name);
@@ -669,11 +669,27 @@ static void close_all_output_streams(OutputStream *ost, OSTFinished this_stream,
     }
 }
 
-static void write_packet(OutputFile *of, AVPacket *pkt, OutputStream *ost)
+static void write_packet(OutputFile *of, AVPacket *pkt, OutputStream *ost, int unqueue)
 {
     AVFormatContext *s = of->ctx;
     AVStream *st = ost->st;
     int ret;
+
+    /*
+     * Audio encoders may split the packets --  #frames in != #packets out.
+     * But there is no reordering, so we can limit the number of output packets
+     * by simply dropping them here.
+     * Counting encoded video frames needs to be done separately because of
+     * reordering, see do_video_out().
+     * Do not count the packet when unqueued because it has been counted when queued.
+     */
+    if (!(st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && ost->encoding_needed) && !unqueue) {
+        if (ost->frame_number >= ost->max_frames) {
+            av_packet_unref(pkt);
+            return;
+        }
+        ost->frame_number++;
+    }
 
     if (!of->header_written) {
         AVPacket tmp_pkt = {0};
@@ -703,20 +719,6 @@ static void write_packet(OutputFile *of, AVPacket *pkt, OutputStream *ost)
         (st->codecpar->codec_type == AVMEDIA_TYPE_AUDIO && audio_sync_method < 0))
         pkt->pts = pkt->dts = AV_NOPTS_VALUE;
 
-    /*
-     * Audio encoders may split the packets --  #frames in != #packets out.
-     * But there is no reordering, so we can limit the number of output packets
-     * by simply dropping them here.
-     * Counting encoded video frames needs to be done separately because of
-     * reordering, see do_video_out()
-     */
-    if (!(st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && ost->encoding_needed)) {
-        if (ost->frame_number >= ost->max_frames) {
-            av_packet_unref(pkt);
-            return;
-        }
-        ost->frame_number++;
-    }
     if (st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
         int i;
         uint8_t *sd = av_packet_get_side_data(pkt, AV_PKT_DATA_QUALITY_STATS,
@@ -861,10 +863,10 @@ static void output_packet(OutputFile *of, AVPacket *pkt, OutputStream *ost)
                     goto finish;
                 idx++;
             } else
-                write_packet(of, pkt, ost);
+                write_packet(of, pkt, ost, 0);
         }
     } else
-        write_packet(of, pkt, ost);
+        write_packet(of, pkt, ost, 0);
 
 finish:
     if (ret < 0 && ret != AVERROR_EOF) {
@@ -1062,8 +1064,8 @@ static void do_video_out(OutputFile *of,
         !ost->filters &&
         next_picture &&
         ist &&
-        lrintf(av_frame_get_pkt_duration(next_picture) * av_q2d(ist->st->time_base) / av_q2d(enc->time_base)) > 0) {
-        duration = lrintf(av_frame_get_pkt_duration(next_picture) * av_q2d(ist->st->time_base) / av_q2d(enc->time_base));
+        lrintf(next_picture->pkt_duration * av_q2d(ist->st->time_base) / av_q2d(enc->time_base)) > 0) {
+        duration = lrintf(next_picture->pkt_duration * av_q2d(ist->st->time_base) / av_q2d(enc->time_base));
     }
 
     if (!next_picture) {
@@ -1506,7 +1508,7 @@ static int reap_filters(int flush)
                 break;
             case AVMEDIA_TYPE_AUDIO:
                 if (!(enc->codec->capabilities & AV_CODEC_CAP_PARAM_CHANGE) &&
-                    enc->channels != av_frame_get_channels(filtered_frame)) {
+                    enc->channels != filtered_frame->channels) {
                     av_log(NULL, AV_LOG_ERROR,
                            "Audio filter graph output is not normalized and encoder does not support parameter changes\n");
                     break;
@@ -1904,8 +1906,6 @@ static void flush_encoders(void)
         if (enc->codec_type != AVMEDIA_TYPE_VIDEO && enc->codec_type != AVMEDIA_TYPE_AUDIO)
             continue;
 
-        avcodec_send_frame(enc, NULL);
-
         for (;;) {
             const char *desc = NULL;
             AVPacket pkt;
@@ -1927,7 +1927,17 @@ static void flush_encoders(void)
                 pkt.size = 0;
 
                 update_benchmark(NULL);
-                ret = avcodec_receive_packet(enc, &pkt);
+
+                while ((ret = avcodec_receive_packet(enc, &pkt)) == AVERROR(EAGAIN)) {
+                    ret = avcodec_send_frame(enc, NULL);
+                    if (ret < 0) {
+                        av_log(NULL, AV_LOG_FATAL, "%s encoding failed: %s\n",
+                               desc,
+                               av_err2str(ret));
+                        exit_program(1);
+                    }
+                }
+
                 update_benchmark("flush_%s %d.%d", desc, ost->file_index, ost->index);
                 if (ret < 0 && ret != AVERROR_EOF) {
                     av_log(NULL, AV_LOG_FATAL, "%s encoding failed: %s\n",
@@ -2118,7 +2128,7 @@ static void check_decode_result(InputStream *ist, int *got_output, int ret)
         exit_program(1);
 
     if (exit_on_error && *got_output && ist) {
-        if (av_frame_get_decode_error_flags(ist->decoded_frame) || (ist->decoded_frame->flags & AV_FRAME_FLAG_CORRUPT)) {
+        if (ist->decoded_frame->decode_error_flags || (ist->decoded_frame->flags & AV_FRAME_FLAG_CORRUPT)) {
             av_log(NULL, AV_LOG_FATAL, "%s: corrupt decoded frame in stream %d\n", input_files[ist->file_index]->ctx->filename, ist->st->index);
             exit_program(1);
         }
@@ -2205,7 +2215,8 @@ static int ifilter_send_frame(InputFilter *ifilter, AVFrame *frame)
 
     ret = av_buffersrc_add_frame_flags(ifilter->filter, frame, AV_BUFFERSRC_FLAG_PUSH);
     if (ret < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Error while filtering\n");
+        if (ret != AVERROR_EOF)
+            av_log(NULL, AV_LOG_ERROR, "Error while filtering: %s\n", av_err2str(ret));
         return ret;
     }
 
@@ -2447,7 +2458,7 @@ static int decode_video(InputStream *ist, AVPacket *pkt, int *got_output, int eo
     }
     ist->hwaccel_retrieved_pix_fmt = decoded_frame->format;
 
-    best_effort_timestamp= av_frame_get_best_effort_timestamp(decoded_frame);
+    best_effort_timestamp= decoded_frame->best_effort_timestamp;
 
     if (ist->framerate.num)
         best_effort_timestamp = ist->cfr_next_pts++;
@@ -2617,7 +2628,7 @@ static int process_input_packet(InputStream *ist, const AVPacket *pkt, int no_eo
 
     // while we have more to decode or while the decoder did output something on EOF
     while (ist->decoding_needed) {
-        int duration = 0;
+        int64_t duration = 0;
         int got_output = 0;
         int decode_failed = 0;
 
@@ -2963,7 +2974,7 @@ static int check_init_output_file(OutputFile *of, int file_index)
         while (av_fifo_size(ost->muxing_queue)) {
             AVPacket pkt;
             av_fifo_generic_read(ost->muxing_queue, &pkt, sizeof(pkt), NULL);
-            write_packet(of, &pkt, ost);
+            write_packet(of, &pkt, ost, 1);
         }
     }
 
@@ -3062,23 +3073,14 @@ static int init_output_stream_streamcopy(OutputStream *ost)
     ost->st->disposition = ist->st->disposition;
 
     if (ist->st->nb_side_data) {
-        ost->st->side_data = av_realloc_array(NULL, ist->st->nb_side_data,
-                                              sizeof(*ist->st->side_data));
-        if (!ost->st->side_data)
-            return AVERROR(ENOMEM);
-
-        ost->st->nb_side_data = 0;
         for (i = 0; i < ist->st->nb_side_data; i++) {
             const AVPacketSideData *sd_src = &ist->st->side_data[i];
-            AVPacketSideData *sd_dst = &ost->st->side_data[ost->st->nb_side_data];
+            uint8_t *dst_data;
 
-            sd_dst->data = av_malloc(sd_src->size);
-            if (!sd_dst->data)
+            dst_data = av_stream_new_side_data(ost->st, sd_src->type, sd_src->size);
+            if (!dst_data)
                 return AVERROR(ENOMEM);
-            memcpy(sd_dst->data, sd_src->data, sd_src->size);
-            sd_dst->size = sd_src->size;
-            sd_dst->type = sd_src->type;
-            ost->st->nb_side_data++;
+            memcpy(dst_data, sd_src->data, sd_src->size);
         }
     }
 
@@ -3467,22 +3469,14 @@ static int init_output_stream(OutputStream *ost, char *error, int error_len)
         if (ost->enc_ctx->nb_coded_side_data) {
             int i;
 
-            ost->st->side_data = av_realloc_array(NULL, ost->enc_ctx->nb_coded_side_data,
-                                                  sizeof(*ost->st->side_data));
-            if (!ost->st->side_data)
-                return AVERROR(ENOMEM);
-
             for (i = 0; i < ost->enc_ctx->nb_coded_side_data; i++) {
                 const AVPacketSideData *sd_src = &ost->enc_ctx->coded_side_data[i];
-                AVPacketSideData *sd_dst = &ost->st->side_data[i];
+                uint8_t *dst_data;
 
-                sd_dst->data = av_malloc(sd_src->size);
-                if (!sd_dst->data)
+                dst_data = av_stream_new_side_data(ost->st, sd_src->type, sd_src->size);
+                if (!dst_data)
                     return AVERROR(ENOMEM);
-                memcpy(sd_dst->data, sd_src->data, sd_src->size);
-                sd_dst->size = sd_src->size;
-                sd_dst->type = sd_src->type;
-                ost->st->nb_side_data++;
+                memcpy(dst_data, sd_src->data, sd_src->size);
             }
         }
 
