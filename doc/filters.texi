@@ -395,6 +395,11 @@ How much to use compressed signal in output. Default is 1.
 Range is between 0 and 1.
 @end table
 
+@section acopy
+
+Copy the input audio source unchanged to the output. This is mainly useful for
+testing purposes.
+
 @section acrossfade
 
 Apply cross fade from one input audio stream to another input audio stream.
@@ -875,6 +880,49 @@ window function will be picked. Default is @code{0.75}.
 Leave almost only low frequencies in audio:
 @example
 afftfilt="1-clip((b/nb)*b,0,1)"
+@end example
+@end itemize
+
+@section afir
+
+Apply an arbitrary Frequency Impulse Response filter.
+
+This filter is designed for applying long FIR filters,
+up to 30 seconds long.
+
+It can be used as component for digital crossover filters,
+room equalization, cross talk cancellation, wavefield synthesis,
+auralization, ambiophonics and ambisonics.
+
+This filter uses second stream as FIR coefficients.
+If second stream holds single channel, it will be used
+for all input channels in first stream, otherwise
+number of channels in second stream must be same as
+number of channels in first stream.
+
+It accepts the following parameters:
+
+@table @option
+@item dry
+Set dry gain. This sets input gain.
+
+@item wet
+Set wet gain. This sets final output gain.
+
+@item length
+Set Impulse Response filter length. Default is 1, which means whole IR is processed.
+
+@item again
+Enable applying gain measured from power of IR.
+@end table
+
+@subsection Examples
+
+@itemize
+@item
+Apply reverb to stream using mono IR file as second input, complete command using ffmpeg:
+@example
+ffmpeg -i input.wav -i middle_tunnel_1way_mono.wav -lavfi afir output.wav
 @end example
 @end itemize
 
@@ -1566,6 +1614,7 @@ Max_level
 Min_difference
 Max_difference
 Mean_difference
+RMS_difference
 Peak_level
 RMS_peak
 RMS_trough
@@ -1581,6 +1630,7 @@ Max_level
 Min_difference
 Max_difference
 Mean_difference
+RMS_difference
 Peak_level
 RMS_level
 RMS_peak
@@ -1621,6 +1671,9 @@ Maximal difference between two consecutive samples.
 @item Mean difference
 Mean difference between two consecutive samples.
 The average of each difference between two consecutive samples.
+
+@item RMS difference
+Root Mean Square difference between two consecutive samples.
 
 @item Peak level dB
 @item RMS level dB
@@ -1858,6 +1911,9 @@ available are filtered.
 Bauer stereo to binaural transformation, which improves headphone listening of
 stereo audio records.
 
+To enable compilation of this filter you need to configure FFmpeg with
+@code{--enable-libbs2b}.
+
 It accepts the following parameters:
 @table @option
 
@@ -2027,7 +2083,7 @@ the following syntax: @code{x0/y0|x1/y1|x2/y2|....} or
 The input values must be in strictly increasing order but the transfer function
 does not have to be monotonically rising. The point @code{0/0} is assumed but
 may be overridden (by @code{0/out-dBn}). Typical values for the transfer
-function are @code{-70/-70|-60/-20}.
+function are @code{-70/-70|-60/-20|1/0}.
 
 @item soft-knee
 Set the curve radius in dB for all joints. It defaults to 0.01.
@@ -2193,6 +2249,35 @@ Default is 1.
 @item temp
 Set temperature degree in Celsius. This is the temperature of the environment.
 Default is 20.
+@end table
+
+@section crossfeed
+Apply headphone crossfeed filter.
+
+Crossfeed is the process of blending the left and right channels of stereo
+audio recording.
+It is mainly used to reduce extreme stereo separation of low frequencies.
+
+The intent is to produce more speaker like sound to the listener.
+
+The filter accepts the following options:
+
+@table @option
+@item strength
+Set strength of crossfeed. Default is 0.2. Allowed range is from 0 to 1.
+This sets gain of low shelf filter for side part of stereo image.
+Default is -6dB. Max allowed is -30db when strength is set to 1.
+
+@item range
+Set soundstage wideness. Default is 0.5. Allowed range is from 0 to 1.
+This sets cut off frequency of low shelf filter. Default is cut off near
+1550 Hz. With range set to 1 cut off frequency is set to 2100 Hz.
+
+@item level_in
+Set input gain. Default is 0.9.
+
+@item level_out
+Set output gain. Default is 1.
 @end table
 
 @section crystalizer
@@ -3616,6 +3701,23 @@ Set S/C level. Default is 1. Allowed range is from 1 to 100.
 
 @item phase
 Set the stereo phase in degrees. Default is 0. Allowed range is from 0 to 360.
+
+@item bmode_in, bmode_out
+Set balance mode for balance_in/balance_out option.
+
+Can be one of the following:
+
+@table @samp
+@item balance
+Classic balance mode. Attenuate one channel at time.
+Gain is raised up to 1.
+
+@item amplitude
+Similar as classic mode above but gain is raised up to 2.
+
+@item power
+Equal power distribution, from -6dB to +6dB range.
+@end table
 @end table
 
 @subsection Examples
@@ -5622,7 +5724,7 @@ convolution="-2 -1 0 -1 1 1 0 1 2:-2 -1 0 -1 1 1 0 1 2:-2 -1 0 -1 1 1 0 1 2:-2 -
 
 @section copy
 
-Copy the input source unchanged to the output. This is mainly useful for
+Copy the input video source unchanged to the output. This is mainly useful for
 testing purposes.
 
 @anchor{coreimage}
@@ -6324,6 +6426,9 @@ Power mean
 @item median
 Median
 @end table
+
+@item bypass
+Do not actually modify frame. Useful when one only wants metadata.
 @end table
 
 @section dejudder
@@ -8757,15 +8862,18 @@ Allowed range is [0, 40].
 Set display mode.
 It accepts the following values:
 @table @samp
-@item parade
+@item stack
 Per color component graphs are placed below each other.
+
+@item parade
+Per color component graphs are placed side by side.
 
 @item overlay
 Presents information identical to that in the @code{parade}, except
 that the graphs representing color components are superimposed directly
 over one another.
 @end table
-Default is @code{parade}.
+Default is @code{stack}.
 
 @item levels_mode
 Set mode. Can be either @code{linear}, or @code{logarithmic}.

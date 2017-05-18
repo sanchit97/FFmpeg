@@ -42,6 +42,7 @@ static void register_all(void)
 {
     REGISTER_FILTER(ABENCH,         abench,         af);
     REGISTER_FILTER(ACOMPRESSOR,    acompressor,    af);
+    REGISTER_FILTER(ACOPY,          acopy,          af);
     REGISTER_FILTER(ACROSSFADE,     acrossfade,     af);
     REGISTER_FILTER(ACRUSHER,       acrusher,       af);
     REGISTER_FILTER(ADELAY,         adelay,         af);
@@ -50,6 +51,7 @@ static void register_all(void)
     REGISTER_FILTER(AEVAL,          aeval,          af);
     REGISTER_FILTER(AFADE,          afade,          af);
     REGISTER_FILTER(AFFTFILT,       afftfilt,       af);
+    REGISTER_FILTER(AFIR,           afir,           af);
     REGISTER_FILTER(AFORMAT,        aformat,        af);
     REGISTER_FILTER(AGATE,          agate,          af);
     REGISTER_FILTER(AINTERLEAVE,    ainterleave,    af);
@@ -93,6 +95,7 @@ static void register_all(void)
     REGISTER_FILTER(CHORUS,         chorus,         af);
     REGISTER_FILTER(COMPAND,        compand,        af);
     REGISTER_FILTER(COMPENSATIONDELAY, compensationdelay, af);
+    REGISTER_FILTER(CROSSFEED,      crossfeed,      af);
     REGISTER_FILTER(CRYSTALIZER,    crystalizer,    af);
     REGISTER_FILTER(DCSHIFT,        dcshift,        af);
     REGISTER_FILTER(DYNAUDNORM,     dynaudnorm,     af);
@@ -277,6 +280,7 @@ static void register_all(void)
     REGISTER_FILTER(ROTATE,         rotate,         vf);
     REGISTER_FILTER(SAB,            sab,            vf);
     REGISTER_FILTER(SCALE,          scale,          vf);
+    REGISTER_FILTER(SCALE_CUDA,     scale_cuda,     vf);
     REGISTER_FILTER(SCALE_NPP,      scale_npp,      vf);
     REGISTER_FILTER(SCALE_QSV,      scale_qsv,      vf);
     REGISTER_FILTER(SCALE_VAAPI,    scale_vaapi,    vf);

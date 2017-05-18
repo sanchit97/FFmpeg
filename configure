@@ -109,7 +109,6 @@ Configuration options:
   --enable-gray            enable full grayscale support (slower color)
   --disable-swscale-alpha  disable alpha channel support in swscale
   --disable-all            disable building components, libraries and programs
-  --enable-raise-major     increase major version numbers in sonames [no]
 
 Program options:
   --disable-programs       do not build command line programs
@@ -245,6 +244,7 @@ External library support:
   --enable-libopenmpt      enable decoding tracked files via libopenmpt [no]
   --enable-libopus         enable Opus de/encoding via libopus [no]
   --enable-libpulse        enable Pulseaudio input via libpulse [no]
+  --enable-librsvg         enable SVG rasterization via librsvg [no]
   --enable-librubberband   enable rubberband needed for rubberband filter [no]
   --enable-librtmp         enable RTMP[E] support via librtmp [no]
   --enable-libschroedinger enable Dirac de/encoding via libschroedinger [no]
@@ -297,6 +297,7 @@ External library support:
   The following libraries provide various hardware acceleration features:
   --disable-audiotoolbox   disable Apple AudioToolbox code [autodetect]
   --disable-cuda           disable dynamically linked Nvidia CUDA code [autodetect]
+  --enable-cuda-sdk        enable CUDA features that require the CUDA SDK [no]
   --disable-cuvid          disable Nvidia CUVID support [autodetect]
   --disable-d3d11va        disable Microsoft Direct3D 11 video acceleration code [autodetect]
   --disable-dxva2          disable Microsoft DirectX 9 video acceleration code [autodetect]
@@ -337,6 +338,7 @@ Toolchain options:
   --cxx=CXX                use C compiler CXX [$cxx_default]
   --objcc=OCC              use ObjC compiler OCC [$cc_default]
   --dep-cc=DEPCC           use dependency generator DEPCC [$cc_default]
+  --nvcc=NVCC              use Nvidia CUDA compiler NVCC [$nvcc_default]
   --ld=LD                  use linker LD [$ld_default]
   --pkg-config=PKGCONFIG   use pkg-config tool PKGCONFIG [$pkg_config_default]
   --pkg-config-flags=FLAGS pass additional flags to pkgconf []
@@ -358,6 +360,7 @@ Toolchain options:
   --extra-libs=ELIBS       add ELIBS [$ELIBS]
   --extra-version=STRING   version string suffix []
   --optflags=OPTFLAGS      override optimization-related compiler flags
+  --nvccflags=NVCCFLAGS    override nvcc flags [$nvccflags_default]
   --build-suffix=SUFFIX    library name suffix []
   --enable-pic             build position-independent code
   --enable-thumb           compile for Thumb instruction set
@@ -1557,6 +1560,7 @@ EXTERNAL_LIBRARY_LIST="
     libopenmpt
     libopus
     libpulse
+    librsvg
     librtmp
     libschroedinger
     libshine
@@ -1598,6 +1602,7 @@ HWACCEL_AUTODETECT_LIBRARY_LIST="
 "
 
 HWACCEL_LIBRARY_NONFREE_LIST="
+    cuda_sdk
     libnpp
 "
 
@@ -1686,7 +1691,6 @@ CONFIG_LIST="
     neon_clobber_test
     ossfuzz
     pic
-    raise_major
     thumb
     valgrind_backtrace
     xmm_clobber_test
@@ -2219,6 +2223,7 @@ CMDLINE_SET="
     malloc_prefix
     nm
     optflags
+    nvccflags
     pkg_config
     pkg_config_flags
     progs_suffix
@@ -2458,6 +2463,7 @@ mjpeg_decoder_select="blockdsp hpeldsp exif idctdsp jpegtables"
 mjpeg_encoder_select="aandcttables jpegtables mpegvideoenc"
 mjpegb_decoder_select="mjpeg_decoder"
 mlp_decoder_select="mlp_parser"
+mlp_encoder_select="lpc"
 motionpixels_decoder_select="bswapdsp"
 mp1_decoder_select="mpegaudio"
 mp1float_decoder_select="mpegaudio"
@@ -2536,6 +2542,7 @@ thp_decoder_select="mjpeg_decoder"
 tiff_decoder_suggest="zlib lzma"
 tiff_encoder_suggest="zlib"
 truehd_decoder_select="mlp_parser"
+truehd_encoder_select="lpc"
 truemotion2_decoder_select="bswapdsp"
 truespeech_decoder_select="bswapdsp"
 tscc_decoder_select="zlib"
@@ -2714,7 +2721,8 @@ qsvenc_select="qsv"
 vaapi_encode_deps="vaapi"
 
 hwupload_cuda_filter_deps="cuda"
-scale_npp_filter_deps="cuda libnpp"
+scale_npp_filter_deps="cuda_sdk libnpp"
+scale_cuda_filter_deps="cuda_sdk"
 
 nvenc_deps="cuda"
 nvenc_deps_any="dlopen LoadLibrary"
@@ -2867,6 +2875,7 @@ libopenmpt_demuxer_deps="libopenmpt"
 libopus_decoder_deps="libopus"
 libopus_encoder_deps="libopus"
 libopus_encoder_select="audio_frame_queue"
+librsvg_decoder_deps="librsvg"
 libschroedinger_decoder_deps="libschroedinger"
 libschroedinger_encoder_deps="libschroedinger"
 libshine_encoder_deps="libshine"
@@ -3081,6 +3090,8 @@ unix_protocol_select="network"
 # filters
 afftfilt_filter_deps="avcodec"
 afftfilt_filter_select="fft"
+afir_filter_deps="avcodec"
+afir_filter_select="fft"
 amovie_filter_deps="avcodec avformat"
 aresample_filter_deps="swresample"
 ass_filter_deps="libass"
@@ -3255,6 +3266,8 @@ strip_default="strip"
 version_script='--version-script'
 yasmexe_default="yasm"
 windres_default="windres"
+nvcc_default="nvcc"
+nvccflags_default="-gencode arch=compute_30,code=sm_30 -O2"
 
 # OS
 target_os_default=$(tolower $(uname -s))
@@ -3328,6 +3341,8 @@ HOSTCC_C='-c'
 HOSTCC_E='-E -o $@'
 HOSTCC_O='-o $@'
 HOSTLD_O='-o $@'
+NVCC_C='-c'
+NVCC_O='-o $@'
 
 host_extralibs='-lm'
 host_cflags_filter=echo
@@ -3715,7 +3730,7 @@ windres_default="${cross_prefix}${windres_default}"
 sysinclude_default="${sysroot}/usr/include"
 
 set_default arch cc cxx doxygen pkg_config ranlib strip sysinclude \
-    target_exec target_os yasmexe
+    target_exec target_os yasmexe nvcc
 enabled cross_compile || host_cc_default=$cc
 set_default host_cc
 
@@ -4851,8 +4866,6 @@ case $target_os in
         else
             target_os=mingw32
         fi
-        decklink_outdev_extralibs="$decklink_outdev_extralibs -lole32 -loleaut32"
-        decklink_indev_extralibs="$decklink_indev_extralibs -lole32 -loleaut32"
         LIBTARGET=i386
         if enabled x86_64; then
             LIBTARGET="i386:x86-64"
@@ -5753,7 +5766,7 @@ done
 enabled avfoundation_indev && { check_header_objcc AVFoundation/AVFoundation.h || disable avfoundation_indev; }
 enabled avfoundation_indev && { check_lib avfoundation_indev CoreGraphics/CoreGraphics.h CGGetActiveDisplayList -framework CoreGraphics ||
                                 check_lib avfoundation_indev ApplicationServices/ApplicationServices.h CGGetActiveDisplayList -framework ApplicationServices; }
-enabled cuda              && check_header cuda.h # this is not a dependency
+enabled cuda_sdk          && require cuda_sdk cuda.h cuCtxCreate -lcuda
 enabled cuvid             && { enabled cuda ||
                                die "ERROR: CUVID requires CUDA"; }
 enabled chromaprint       && require chromaprint chromaprint.h chromaprint_get_version -lchromaprint
@@ -5764,8 +5777,7 @@ enabled decklink          && { { check_header DeckLinkAPI.h || die "ERROR: DeckL
 enabled frei0r            && { check_header frei0r.h || die "ERROR: frei0r.h header not found"; }
 enabled gmp               && require gmp gmp.h mpz_export -lgmp
 enabled gnutls            && require_pkg_config gnutls gnutls/gnutls.h gnutls_global_init
-enabled jni               && { [ $target_os = "android" ] && check_header jni.h && enabled pthreads &&
-                               check_lib jni "dlfcn.h" dlopen -ldl || die "ERROR: jni not found"; }
+enabled jni               && { [ $target_os = "android" ] && check_header jni.h && enabled pthreads || die "ERROR: jni not found"; }
 enabled ladspa            && { check_header ladspa.h || die "ERROR: ladspa.h header not found"; }
 enabled libiec61883       && require libiec61883 libiec61883/iec61883.h iec61883_cmp_connect -lraw1394 -lavc1394 -lrom1394 -liec61883
 enabled libass            && require_pkg_config libass ass/ass.h ass_library_init
@@ -5791,7 +5803,14 @@ enabled libgsm            && { for gsm_hdr in "gsm.h" "gsm/gsm.h"; do
                                done || die "ERROR: libgsm not found"; }
 enabled libilbc           && require libilbc ilbc.h WebRtcIlbcfix_InitDecode -lilbc
 enabled libkvazaar        && require_pkg_config "kvazaar >= 0.8.1" kvazaar.h kvz_api_get
-enabled libmfx            && require_pkg_config libmfx "mfx/mfxvideo.h" MFXInit
+# While it may appear that require is being used as a pkg-config
+# fallback for libmfx, it is actually being used to detect a different
+# installation route altogether.  If libmfx is installed via the Intel
+# Media SDK or Intel Media Server Studio, these don't come with
+# pkg-config support.  Instead, users should make sure that the build
+# can find the libraries and headers through other means.
+enabled libmfx            && { use_pkg_config libmfx "mfx/mfxvideo.h" MFXInit ||
+                               { require libmfx "mfx/mfxvideo.h" MFXInit -llibmfx && warn "using libmfx without pkg-config"; } }
 enabled libmodplug        && require_pkg_config libmodplug libmodplug/modplug.h ModPlug_Load
 enabled libmp3lame        && require "libmp3lame >= 3.98.3" lame/lame.h lame_set_VBR_quality -lmp3lame
 enabled libnut            && require libnut libnut.h nut_demuxer_init -lnut
@@ -5819,6 +5838,7 @@ enabled libopus           && {
     }
 }
 enabled libpulse          && require_pkg_config libpulse pulse/pulseaudio.h pa_context_new
+enabled librsvg           && require_pkg_config librsvg-2.0 librsvg-2.0/librsvg/rsvg.h rsvg_handle_render_cairo
 enabled librtmp           && require_pkg_config librtmp librtmp/rtmp.h RTMP_Socket
 enabled librubberband     && require_pkg_config "rubberband >= 1.8.1" rubberband/rubberband-c.h rubberband_new
 enabled libschroedinger   && require_pkg_config schroedinger-1.0 schroedinger/schro.h schro_init
@@ -5956,6 +5976,15 @@ if ! disabled sdl2; then
     fi
 fi
 enabled sdl2 && enable sdl && add_cflags $sdl2_cflags && add_extralibs $sdl2_extralibs
+
+if enabled decklink; then
+    case $target_os in
+        mingw32*|mingw64*|win32|win64)
+            decklink_outdev_extralibs="$decklink_outdev_extralibs -lole32 -loleaut32"
+            decklink_indev_extralibs="$decklink_indev_extralibs -lole32 -loleaut32"
+            ;;
+    esac
+fi
 
 disabled securetransport || { check_func SecIdentityCreate "-Wl,-framework,CoreFoundation -Wl,-framework,Security" &&
     check_lib securetransport "Security/SecureTransport.h Security/Security.h" "SSLCreateContext SecItemImport" "-Wl,-framework,CoreFoundation -Wl,-framework,Security"; }
@@ -6221,6 +6250,16 @@ if [ -z "$optflags" ]; then
     fi
 fi
 
+if [ -z "$nvccflags" ]; then
+    nvccflags=$nvccflags_default
+fi
+
+if enabled x86_64 || enabled ppc64 || enabled aarch64; then
+    nvccflags="$nvccflags -m64"
+else
+    nvccflags="$nvccflags -m32"
+fi
+
 check_optflags(){
     check_cflags "$@"
     enabled lto && check_ldflags "$@"
@@ -6460,6 +6499,7 @@ enabled zlib && add_cppflags -DZLIB_CONST
 
 # conditional library dependencies, in linking order
 enabled afftfilt_filter     && prepend avfilter_deps "avcodec"
+enabled afir_filter         && prepend avfilter_deps "avcodec"
 enabled amovie_filter       && prepend avfilter_deps "avformat avcodec"
 enabled aresample_filter    && prepend avfilter_deps "swresample"
 enabled atempo_filter       && prepend avfilter_deps "avcodec"
@@ -6683,6 +6723,7 @@ ARFLAGS=$arflags
 AR_O=$ar_o
 RANLIB=$ranlib
 STRIP=$strip
+NVCC=$nvcc
 CP=cp -p
 LN_S=$ln_s
 CPPFLAGS=$CPPFLAGS
@@ -6690,6 +6731,7 @@ CFLAGS=$CFLAGS
 CXXFLAGS=$CXXFLAGS
 OBJCFLAGS=$OBJCFLAGS
 ASFLAGS=$ASFLAGS
+NVCCFLAGS=$nvccflags
 AS_C=$AS_C
 AS_O=$AS_O
 OBJCC_C=$OBJCC_C
@@ -6700,6 +6742,8 @@ CC_E=$CC_E
 CC_O=$CC_O
 CXX_C=$CXX_C
 CXX_O=$CXX_O
+NVCC_C=$NVCC_C
+NVCC_O=$NVCC_O
 LD_O=$LD_O
 LD_LIB=$LD_LIB
 LD_PATH=$LD_PATH
