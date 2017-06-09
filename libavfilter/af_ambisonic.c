@@ -67,7 +67,7 @@ static int query_formats(AVFilterContext *ctx)
 
     if ((ret = ff_add_format        (&formats, AV_SAMPLE_FMT_FLTP   )) < 0 ||
         (ret = ff_set_common_formats              (ctx    , formats )) < 0 ||
-        (ret = ff_add_channel_layout (&layout , AV_CH_LAYOUT_MONO)) < 0 ||
+        (ret = ff_add_channel_layout (&layout , AV_CH_LAYOUT_4POINT0)) < 0 ||
         (ret = ff_set_common_channel_layouts     (ctx    , layout   )) < 0)
         return ret;
 
@@ -210,13 +210,13 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
 
     s->filter = shelf_flt;
 
-    for w channel gain= 1.75
+    //for w channel gain= 1.75
     s->filter(s, in->extended_data[0],
                   out_buf->extended_data[0], in->nb_samples,
                   &s->cache[0].i1, &s->cache[0].i2,
                   &s->cache[0].o1, &s->cache[0].o2,
                   s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,1);
-    for x & y channel gain= -1.26
+    //for x & y channel gain= -1.26
     s->filter(s, in->extended_data[1],
                   out_buf->extended_data[1], in->nb_samples,
                   &s->cache[0].i1, &s->cache[0].i2,
