@@ -29,7 +29,8 @@
 #include <stdio.h>
 
 enum FilterType {
-    shelf
+    shelf,
+    phaseshift
 };
 
 typedef struct Cache {
@@ -41,6 +42,8 @@ typedef struct Cache {
 typedef struct AmbisonicContext {
     const AVClass *class;
     enum FilterType filter_type;
+    int dimension;
+    int nb_sp;
     double gain;
     double frequency;
     double width;
@@ -55,7 +58,14 @@ typedef struct AmbisonicContext {
 
 } AmbisonicContext;
 
+#define OFFSET(x) offsetof(AmbisonicContext,x)
+#define FLAGS AV_OPT_FLAG_AUDIO_PARAM|AV_OPT_FLAG_FILTERING_PARAM
+
 static const AVOption ambisonic_options[] = {
+    {"dimension","Set 2D or 3D layout", OFFSET(dimension), AV_OPT_TYPE_INT, {.i64 = 2}, 0, 3, FLAGS},
+    {"d","Set 2D or 3D layout", OFFSET(dimension), AV_OPT_TYPE_INT, {.i64 = 2}, 0, 3, FLAGS},
+    {"speakers","Set number of speakers(regular)", OFFSET(nb_sp), AV_OPT_TYPE_INT, {.i64=4}, 3, 10, FLAGS},
+    {"s","Set number of speakers(regular)", OFFSET(nb_sp), AV_OPT_TYPE_INT, {.i64=4}, 3, 10, FLAGS},
     {NULL}
 };
 
@@ -156,7 +166,7 @@ static int config_output(AVFilterLink *outlink)
     A = exp(s->gain / 40 * log(10.));
     w0 = 2 * M_PI * s->frequency / inlink->sample_rate;
     alpha=sin(w0) / (2 * s->frequency / s->width);
-
+    printf("Number Speakers%d\n",s->nb_sp);
     switch (s->filter_type) {
     case shelf:
         s->a0 =          (A + 1) + (A - 1) * cos(w0) + 2 * sqrt(A) * alpha;
@@ -229,6 +239,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
                   &s->cache[0].o1, &s->cache[0].o2,
                   s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,3);
 
+    //4.0
     w=(float *)in->extended_data[0];
     x=(float *)in->extended_data[1];
     y=(float *)in->extended_data[2];
