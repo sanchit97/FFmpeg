@@ -28,6 +28,8 @@
 #include <math.h>
 #include <stdio.h>
 
+#define root8 sqrt(8)
+
 enum FilterType {
     shelf,
     phaseshift
@@ -44,6 +46,8 @@ typedef struct AmbisonicContext {
     enum FilterType filter_type;
     int dimension;
     int nb_sp;
+    int nb_channels;
+    int order;
     double gain;
     double frequency;
     double width;
@@ -51,6 +55,8 @@ typedef struct AmbisonicContext {
     double a0, a1, a2;
     double b0, b1, b2;
     Cache *cache;
+    float decode_matrix[22][9];
+
 
     void (*filter)(struct AmbisonicContext *s, const void *ibuf, void *obuf, int len,
                    double *i1, double *i2, double *o1, double *o2,
@@ -69,15 +75,66 @@ static const AVOption ambisonic_options[] = {
     {NULL}
 };
 
+
 static int query_formats(AVFilterContext *ctx)
 {
+    AmbisonicContext *s     = ctx->priv;
     AVFilterFormats *formats = NULL;
     AVFilterChannelLayouts *layout = NULL;
+    int temp;
     int ret;
+
+    //will be changed
+    s->order=1;//first order ambisonics
+    switch(s->dimension)
+    {
+        case 2:
+        s->nb_channels=2*s->order+1;
+        break;
+        case 3:
+        s->nb_channels=(s->order+1)*(s->order+1);
+        break;
+        default:
+        s->nb_channels=2*s->order+1;
+    }
+
+    switch(s->dimension)
+    {
+        case 2:
+        switch(s->nb_sp)
+        {
+            case 4:  temp=AV_CH_LAYOUT_4POINT0;
+            break;
+            case 5:  temp=AV_CH_LAYOUT_5POINT0;
+            break;
+            case 6:  temp=AV_CH_LAYOUT_6POINT0;
+            break;
+            case 7:  temp=AV_CH_LAYOUT_7POINT0;
+            break;
+            case 8:  temp=AV_CH_LAYOUT_OCTAGONAL;
+            break;
+            // case 16: temp=AV_CH_LAYOUT_HEXADECAGONAL;
+            // break;
+            default: temp=AV_CH_LAYOUT_4POINT0;
+        }
+        break;
+
+        case 3:
+        break;
+    }
+
+    int i,j;
+    for(i=0;i<22;i++)
+    {
+        for(j=0;j<9;j++)
+        {
+            s->decode_matrix[i][j]=0;
+        }
+    }
 
     if ((ret = ff_add_format        (&formats, AV_SAMPLE_FMT_FLTP   )) < 0 ||
         (ret = ff_set_common_formats              (ctx    , formats )) < 0 ||
-        (ret = ff_add_channel_layout (&layout , AV_CH_LAYOUT_4POINT0)) < 0 ||
+        (ret = ff_add_channel_layout                 (&layout , temp)) < 0 ||
         (ret = ff_set_common_channel_layouts     (ctx    , layout   )) < 0)
         return ret;
 
@@ -166,7 +223,7 @@ static int config_output(AVFilterLink *outlink)
     A = exp(s->gain / 40 * log(10.));
     w0 = 2 * M_PI * s->frequency / inlink->sample_rate;
     alpha=sin(w0) / (2 * s->frequency / s->width);
-    printf("Number Speakers%d\n",s->nb_sp);
+
     switch (s->filter_type) {
     case shelf:
         s->a0 =          (A + 1) + (A - 1) * cos(w0) + 2 * sqrt(A) * alpha;
@@ -191,10 +248,39 @@ static int config_output(AVFilterLink *outlink)
 
     memset(s->cache, 0, sizeof(Cache) * inlink->channels);
 
-
     return 0;
 }
 
+static float multiply(float decode_matrix[22][9],int row, float *vars[22], int sample_no, int nb_channels)
+{
+    int j;
+    float sum=0;
+    for(j=0;j<nb_channels;j++)
+    {
+        sum+=(decode_matrix[row][j]*vars[j][sample_no]);
+    }
+    return sum;
+}
+
+static void configure_matrix(float matrix[22][9], int channels, int speakers,int dimension)
+{
+    matrix[0][0]=2*root8;
+    matrix[0][1]=root8;
+    matrix[0][2]=root8;
+    matrix[0][3]=0;
+    matrix[1][0]=2*root8;
+    matrix[1][1]=(-1)*root8;
+    matrix[1][2]=root8;
+    matrix[1][3]=0;
+    matrix[2][0]=2*root8;
+    matrix[2][1]=(-1)*root8;
+    matrix[2][2]=(-1)*root8;
+    matrix[2][3]=0;
+    matrix[3][0]=2*root8;
+    matrix[3][1]=root8;
+    matrix[3][2]=(-1)*root8;
+    matrix[3][3]=0;
+}
 
 static int filter_frame(AVFilterLink *inlink, AVFrame *in)
 {
@@ -203,9 +289,9 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     AVFilterLink *outlink = ctx->outputs[0];
     AVFrame *out_buf;
     int itr;
-    float *w,*x,*y,*c1,*c2,*c3,*c4;
-    float root8 = sqrt(8);
-    float lf=0,lb=0,rb=0,rf=0;
+    // float *w,*x,*y,*c1,*c2,*c3,*c4;
+
+    // float lf=0,lb=0,rb=0,rf=0;
 
     if (av_frame_is_writable(in)) {
         out_buf = in;
@@ -220,7 +306,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
 
     s->filter = shelf_flt;
 
-    //for w channel gain= 1.75
+    // shelf filter
+    // for w channel gain= 1.75
     s->filter(s, in->extended_data[0],
                   out_buf->extended_data[0], in->nb_samples,
                   &s->cache[0].i1, &s->cache[0].i2,
@@ -239,24 +326,39 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
                   &s->cache[0].o1, &s->cache[0].o2,
                   s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,3);
 
-    //4.0
-    w=(float *)in->extended_data[0];
-    x=(float *)in->extended_data[1];
-    y=(float *)in->extended_data[2];
-    c1=(float *)out_buf->extended_data[0];
-    c2=(float *)out_buf->extended_data[1];
-    c3=(float *)out_buf->extended_data[2];
-    c4=(float *)out_buf->extended_data[3];
+    float *vars[22];
+    float calc[22]={0};
+    float *c[22];
+    int i;
 
-    for(itr=0;itr<in->nb_samples;itr++){
-        lf = root8 * (2*(w[itr])+x[itr]+y[itr]);
-        lb = root8 * (2*(w[itr])-x[itr]+y[itr]);
-        rb = root8 * (2*(w[itr])-x[itr]-y[itr]);
-        rf = root8 * (2*(w[itr])+x[itr]-y[itr]);
-        c1[itr] = lf;
-        c2[itr] = rf;
-        c3[itr] = lb;
-        c4[itr] = rb;
+    configure_matrix(s->decode_matrix,s->nb_channels,s->nb_sp,s->dimension);
+    for(i=0;i<s->nb_channels;i++)
+    {
+        vars[i]=(float*)in->extended_data[i];
+        // w=(float *)in->extended_data[0];
+        // x=(float *)in->extended_data[1];
+        // y=(float *)in->extended_data[2];
+    }
+    for(i=0;i<s->nb_sp;i++)
+    {
+        c[i]=(float *)out_buf->extended_data[i];
+        // c1=(float *)out_buf->extended_data[0];
+        // c2=(float *)out_buf->extended_data[1];
+        // c3=(float *)out_buf->extended_data[2];
+        // c4=(float *)out_buf->extended_data[3];
+    }
+
+    for(itr=0;itr<in->nb_samples;itr++)
+    {
+        for(i=0;i<s->nb_sp;i++)
+        {
+            calc[i]=multiply(s->decode_matrix,i,vars,itr,s->nb_channels);
+        }
+        for(i=0;i<s->nb_sp;i++)
+        {
+            c[i][itr]=calc[i];
+        }
+
     }
 
     if (out_buf != in)
