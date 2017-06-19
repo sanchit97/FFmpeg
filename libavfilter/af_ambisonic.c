@@ -48,6 +48,7 @@ typedef struct AmbisonicContext {
     int nb_sp;
     int nb_channels;
     int order;
+    int enable_shelf;
     double gain;
     double frequency;
     double width;
@@ -72,6 +73,8 @@ static const AVOption ambisonic_options[] = {
     {"d","Set 2D or 3D layout", OFFSET(dimension), AV_OPT_TYPE_INT, {.i64 = 2}, 0, 3, FLAGS},
     {"speakers","Set number of speakers(regular)", OFFSET(nb_sp), AV_OPT_TYPE_INT, {.i64=4}, 3, 10, FLAGS},
     {"s","Set number of speakers(regular)", OFFSET(nb_sp), AV_OPT_TYPE_INT, {.i64=4}, 3, 10, FLAGS},
+    {"enable_shelf","Set if shelf filtering is required",OFFSET(enable_shelf), AV_OPT_TYPE_INT, {.i64=1}, 0, 1, FLAGS},
+    {"e_s","Set if shelf filtering is required",OFFSET(enable_shelf), AV_OPT_TYPE_INT, {.i64=1}, 0, 1, FLAGS},
     {NULL}
 };
 
@@ -289,9 +292,10 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     AVFilterLink *outlink = ctx->outputs[0];
     AVFrame *out_buf;
     int itr;
-    // float *w,*x,*y,*c1,*c2,*c3,*c4;
-
-    // float lf=0,lb=0,rb=0,rf=0;
+    float *vars[22];
+    float calc[22]={0};
+    float *c[22];
+    int i;
 
     if (av_frame_is_writable(in)) {
         out_buf = in;
@@ -306,46 +310,39 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
 
     s->filter = shelf_flt;
 
-    // shelf filter
-    // for w channel gain= 1.75
-    s->filter(s, in->extended_data[0],
-                  out_buf->extended_data[0], in->nb_samples,
-                  &s->cache[0].i1, &s->cache[0].i2,
-                  &s->cache[0].o1, &s->cache[0].o2,
-                  s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,1);
-    //for x & y channel gain= -1.26
-    s->filter(s, in->extended_data[1],
-                  out_buf->extended_data[1], in->nb_samples,
-                  &s->cache[0].i1, &s->cache[0].i2,
-                  &s->cache[0].o1, &s->cache[0].o2,
-                  s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,2);
+    if(s->enable_shelf)
+    {
+        // shelf filter
+        // for w channel gain= 1.75
+        s->filter(s, in->extended_data[0],
+                      out_buf->extended_data[0], in->nb_samples,
+                      &s->cache[0].i1, &s->cache[0].i2,
+                      &s->cache[0].o1, &s->cache[0].o2,
+                      s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,1);
+        //for x & y channel gain= -1.26
+        s->filter(s, in->extended_data[1],
+                      out_buf->extended_data[1], in->nb_samples,
+                      &s->cache[1].i1, &s->cache[1].i2,
+                      &s->cache[1].o1, &s->cache[1].o2,
+                      s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,2);
 
-    s->filter(s, in->extended_data[2],
-                  out_buf->extended_data[2], in->nb_samples,
-                  &s->cache[0].i1, &s->cache[0].i2,
-                  &s->cache[0].o1, &s->cache[0].o2,
-                  s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,3);
+        s->filter(s, in->extended_data[2],
+                      out_buf->extended_data[2], in->nb_samples,
+                      &s->cache[2].i1, &s->cache[2].i2,
+                      &s->cache[2].o1, &s->cache[2].o2,
+                      s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,3);
+    }
 
-    float *vars[22];
-    float calc[22]={0};
-    float *c[22];
-    int i;
 
     configure_matrix(s->decode_matrix,s->nb_channels,s->nb_sp,s->dimension);
     for(i=0;i<s->nb_channels;i++)
     {
         vars[i]=(float*)in->extended_data[i];
-        // w=(float *)in->extended_data[0];
-        // x=(float *)in->extended_data[1];
-        // y=(float *)in->extended_data[2];
     }
+
     for(i=0;i<s->nb_sp;i++)
     {
         c[i]=(float *)out_buf->extended_data[i];
-        // c1=(float *)out_buf->extended_data[0];
-        // c2=(float *)out_buf->extended_data[1];
-        // c3=(float *)out_buf->extended_data[2];
-        // c4=(float *)out_buf->extended_data[3];
     }
 
     for(itr=0;itr<in->nb_samples;itr++)
@@ -358,7 +355,6 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
         {
             c[i][itr]=calc[i];
         }
-
     }
 
     if (out_buf != in)
