@@ -1236,8 +1236,8 @@ static int mov_read_mdhd(MOVContext *c, AVIOContext *pb, MOVAtom atom)
 
     sc->time_scale = avio_rb32(pb);
     if (sc->time_scale <= 0) {
-        av_log(c->fc, AV_LOG_ERROR, "Invalid mdhd time scale %d\n", sc->time_scale);
-        return AVERROR_INVALIDDATA;
+        av_log(c->fc, AV_LOG_ERROR, "Invalid mdhd time scale %d, defaulting to 1\n", sc->time_scale);
+        sc->time_scale = 1;
     }
     st->duration = (version == 1) ? avio_rb64(pb) : avio_rb32(pb); /* duration */
 
@@ -1266,8 +1266,8 @@ static int mov_read_mvhd(MOVContext *c, AVIOContext *pb, MOVAtom atom)
     mov_metadata_creation_time(&c->fc->metadata, creation_time);
     c->time_scale = avio_rb32(pb); /* time scale */
     if (c->time_scale <= 0) {
-        av_log(c->fc, AV_LOG_ERROR, "Invalid mvhd time scale %d\n", c->time_scale);
-        return AVERROR_INVALIDDATA;
+        av_log(c->fc, AV_LOG_ERROR, "Invalid mvhd time scale %d, defaulting to 1\n", c->time_scale);
+        c->time_scale = 1;
     }
     av_log(c->fc, AV_LOG_TRACE, "time scale = %i\n", c->time_scale);
 
@@ -3039,6 +3039,9 @@ static void mov_fix_index(MOVContext *mov, AVStream *st)
     int64_t edit_list_dts_entry_end = 0;
     int64_t edit_list_start_ctts_sample = 0;
     int64_t curr_cts;
+    int64_t curr_ctts = 0;
+    int64_t min_corrected_pts = -1;
+    int64_t empty_edits_sum_duration = 0;
     int64_t edit_list_index = 0;
     int64_t index;
     int64_t index_ctts_count;
@@ -3053,6 +3056,7 @@ static void mov_fix_index(MOVContext *mov, AVStream *st)
     int first_non_zero_audio_edit = -1;
     int packet_skip_samples = 0;
     MOVIndexRange *current_index_range;
+    int i;
 
     if (!msc->elst_data || msc->elst_count <= 0 || nb_old <= 0) {
         return;
@@ -3080,13 +3084,9 @@ static void mov_fix_index(MOVContext *mov, AVStream *st)
 
     // If the dts_shift is positive (in case of negative ctts values in mov),
     // then negate the DTS by dts_shift
-    if (msc->dts_shift > 0)
+    if (msc->dts_shift > 0) {
         edit_list_dts_entry_end -= msc->dts_shift;
-
-    // Offset the DTS by ctts[0] to make the PTS of the first frame 0
-    if (ctts_data_old && ctts_count_old > 0) {
-        edit_list_dts_entry_end -= ctts_data_old[0].duration;
-        av_log(mov->fc, AV_LOG_DEBUG, "Offset DTS by ctts[%d].duration: %d\n", 0, ctts_data_old[0].duration);
+        av_log(mov->fc, AV_LOG_DEBUG, "Shifting DTS by %d because of negative CTTS.\n", msc->dts_shift);
     }
 
     start_dts = edit_list_dts_entry_end;
@@ -3100,6 +3100,7 @@ static void mov_fix_index(MOVContext *mov, AVStream *st)
         edit_list_dts_entry_end += edit_list_duration;
         num_discarded_begin = 0;
         if (edit_list_media_time == -1) {
+            empty_edits_sum_duration += edit_list_duration;
             continue;
         }
 
@@ -3179,11 +3180,13 @@ static void mov_fix_index(MOVContext *mov, AVStream *st)
 
             // frames (pts) before or after edit list
             curr_cts = current->timestamp + msc->dts_shift;
+            curr_ctts = 0;
 
             if (ctts_data_old && ctts_index_old < ctts_count_old) {
-                av_log(mov->fc, AV_LOG_DEBUG, "shifted frame pts, curr_cts: %"PRId64" @ %"PRId64", ctts: %d, ctts_count: %"PRId64"\n",
-                       curr_cts, ctts_index_old, ctts_data_old[ctts_index_old].duration, ctts_count_old);
-                curr_cts += ctts_data_old[ctts_index_old].duration;
+                curr_ctts = ctts_data_old[ctts_index_old].duration;
+                av_log(mov->fc, AV_LOG_DEBUG, "stts: %"PRId64" ctts: %"PRId64", ctts_index: %"PRId64", ctts_count: %"PRId64"\n",
+                       curr_cts, curr_ctts, ctts_index_old, ctts_count_old);
+                curr_cts += curr_ctts;
                 ctts_sample_old++;
                 if (ctts_sample_old == ctts_data_old[ctts_index_old].count) {
                     if (add_ctts_entry(&msc->ctts_data, &msc->ctts_count,
@@ -3244,14 +3247,21 @@ static void mov_fix_index(MOVContext *mov, AVStream *st)
                         }
                     }
                 }
-            } else if (edit_list_start_encountered == 0) {
-                edit_list_start_encountered = 1;
-                // Make timestamps strictly monotonically increasing for audio, by rewriting timestamps for
-                // discarded packets.
-                if (st->codecpar->codec_type == AVMEDIA_TYPE_AUDIO && frame_duration_buffer) {
-                    fix_index_entry_timestamps(st, st->nb_index_entries, edit_list_dts_counter,
-                                               frame_duration_buffer, num_discarded_begin);
-                    av_freep(&frame_duration_buffer);
+            } else {
+                if (min_corrected_pts < 0) {
+                    min_corrected_pts = edit_list_dts_counter + curr_ctts + msc->dts_shift;
+                } else {
+                    min_corrected_pts = FFMIN(min_corrected_pts, edit_list_dts_counter + curr_ctts + msc->dts_shift);
+                }
+                if (edit_list_start_encountered == 0) {
+                    edit_list_start_encountered = 1;
+                    // Make timestamps strictly monotonically increasing for audio, by rewriting timestamps for
+                    // discarded packets.
+                    if (st->codecpar->codec_type == AVMEDIA_TYPE_AUDIO && frame_duration_buffer) {
+                        fix_index_entry_timestamps(st, st->nb_index_entries, edit_list_dts_counter,
+                                                   frame_duration_buffer, num_discarded_begin);
+                        av_freep(&frame_duration_buffer);
+                    }
                 }
             }
 
@@ -3292,6 +3302,19 @@ static void mov_fix_index(MOVContext *mov, AVStream *st)
             }
         }
     }
+    // If there are empty edits, then min_corrected_pts might be positive intentionally. So we subtract the
+    // sum duration of emtpy edits here.
+    min_corrected_pts -= empty_edits_sum_duration;
+
+    // If the minimum pts turns out to be greater than zero after fixing the index, then we subtract the
+    // dts by that amount to make the first pts zero.
+    if (st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && min_corrected_pts > 0) {
+        av_log(mov->fc, AV_LOG_DEBUG, "Offset DTS by %"PRId64" to make first pts zero.\n", min_corrected_pts);
+        for (i = 0; i < st->nb_index_entries; ++i) {
+            st->index_entries[i].timestamp -= min_corrected_pts;
+        }
+    }
+
     // Update av stream length
     st->duration = edit_list_dts_entry_end - start_dts;
 
@@ -4612,6 +4635,128 @@ static int mov_read_tmcd(MOVContext *c, AVIOContext *pb, MOVAtom atom)
     return 0;
 }
 
+static int mov_read_vpcc(MOVContext *c, AVIOContext *pb, MOVAtom atom)
+{
+    AVStream *st;
+    int version, color_range, color_primaries, color_trc, color_space;
+
+    if (c->fc->nb_streams < 1)
+        return 0;
+    st = c->fc->streams[c->fc->nb_streams - 1];
+
+    if (atom.size < 5) {
+        av_log(c->fc, AV_LOG_ERROR, "Empty VP Codec Configuration box\n");
+        return AVERROR_INVALIDDATA;
+    }
+
+    version = avio_r8(pb);
+    if (version != 1) {
+        av_log(c->fc, AV_LOG_WARNING, "Unsupported VP Codec Configuration box version %d\n", version);
+        return 0;
+    }
+    avio_skip(pb, 3); /* flags */
+
+    avio_skip(pb, 2); /* profile + level */
+    color_range     = avio_r8(pb); /* bitDepth, chromaSubsampling, videoFullRangeFlag */
+    color_primaries = avio_r8(pb);
+    color_trc       = avio_r8(pb);
+    color_space     = avio_r8(pb);
+    if (avio_rb16(pb)) /* codecIntializationDataSize */
+        return AVERROR_INVALIDDATA;
+
+    if (!av_color_primaries_name(color_primaries))
+        color_primaries = AVCOL_PRI_UNSPECIFIED;
+    if (!av_color_transfer_name(color_trc))
+        color_trc = AVCOL_TRC_UNSPECIFIED;
+    if (!av_color_space_name(color_space))
+        color_space = AVCOL_SPC_UNSPECIFIED;
+
+    st->codecpar->color_range     = (color_range & 1) ? AVCOL_RANGE_JPEG : AVCOL_RANGE_MPEG;
+    st->codecpar->color_primaries = color_primaries;
+    st->codecpar->color_trc       = color_trc;
+    st->codecpar->color_space     = color_space;
+
+    return 0;
+}
+
+static int mov_read_smdm(MOVContext *c, AVIOContext *pb, MOVAtom atom)
+{
+    MOVStreamContext *sc;
+    const int chroma_den = 50000;
+    const int luma_den = 10000;
+    int i, j, version;
+
+    if (c->fc->nb_streams < 1)
+        return AVERROR_INVALIDDATA;
+
+    sc = c->fc->streams[c->fc->nb_streams - 1]->priv_data;
+
+    if (atom.size < 5) {
+        av_log(c->fc, AV_LOG_ERROR, "Empty Mastering Display Metadata box\n");
+        return AVERROR_INVALIDDATA;
+    }
+
+    version = avio_r8(pb);
+    if (version) {
+        av_log(c->fc, AV_LOG_WARNING, "Unsupported Mastering Display Metadata box version %d\n", version);
+        return 0;
+    }
+    avio_skip(pb, 3); /* flags */
+
+    sc->mastering = av_mastering_display_metadata_alloc();
+    if (!sc->mastering)
+        return AVERROR(ENOMEM);
+
+    for (i = 0; i < 3; i++)
+        for (j = 0; j < 2; j++)
+            sc->mastering->display_primaries[i][j] =
+                av_make_q(lrint(((double)avio_rb16(pb) / (1 << 16)) * chroma_den), chroma_den);
+    for (i = 0; i < 2; i++)
+        sc->mastering->white_point[i] =
+            av_make_q(lrint(((double)avio_rb16(pb) / (1 << 16)) * chroma_den), chroma_den);
+    sc->mastering->max_luminance =
+        av_make_q(lrint(((double)avio_rb32(pb) / (1 <<  8)) * luma_den), luma_den);
+    sc->mastering->min_luminance =
+        av_make_q(lrint(((double)avio_rb32(pb) / (1 << 14)) * luma_den), luma_den);
+
+    sc->mastering->has_primaries = 1;
+    sc->mastering->has_luminance = 1;
+
+    return 0;
+}
+
+static int mov_read_coll(MOVContext *c, AVIOContext *pb, MOVAtom atom)
+{
+    MOVStreamContext *sc;
+    int version;
+
+    if (c->fc->nb_streams < 1)
+        return AVERROR_INVALIDDATA;
+
+    sc = c->fc->streams[c->fc->nb_streams - 1]->priv_data;
+
+    if (atom.size < 5) {
+        av_log(c->fc, AV_LOG_ERROR, "Empty Content Light Level box\n");
+        return AVERROR_INVALIDDATA;
+    }
+
+    version = avio_r8(pb);
+    if (version) {
+        av_log(c->fc, AV_LOG_WARNING, "Unsupported Content Light Level box version %d\n", version);
+        return 0;
+    }
+    avio_skip(pb, 3); /* flags */
+
+    sc->coll = av_content_light_metadata_alloc(&sc->coll_size);
+    if (!sc->coll)
+        return AVERROR(ENOMEM);
+
+    sc->coll->MaxCLL  = avio_rb16(pb);
+    sc->coll->MaxFALL = avio_rb16(pb);
+
+    return 0;
+}
+
 static int mov_read_st3d(MOVContext *c, AVIOContext *pb, MOVAtom atom)
 {
     AVStream *st;
@@ -5398,6 +5543,9 @@ static const MOVParseTableEntry mov_default_parse_table[] = {
 { MKTAG('s','t','3','d'), mov_read_st3d }, /* stereoscopic 3D video box */
 { MKTAG('s','v','3','d'), mov_read_sv3d }, /* spherical video box */
 { MKTAG('d','O','p','s'), mov_read_dops },
+{ MKTAG('S','m','D','m'), mov_read_smdm },
+{ MKTAG('C','o','L','L'), mov_read_coll },
+{ MKTAG('v','p','c','C'), mov_read_vpcc },
 { 0, NULL }
 };
 
@@ -5822,6 +5970,8 @@ static int mov_read_close(AVFormatContext *s)
 
         av_freep(&sc->stereo3d);
         av_freep(&sc->spherical);
+        av_freep(&sc->mastering);
+        av_freep(&sc->coll);
     }
 
     if (mov->dv_demux) {
@@ -6171,6 +6321,24 @@ static int mov_read_header(AVFormatContext *s)
                     return err;
 
                 sc->spherical = NULL;
+            }
+            if (sc->mastering) {
+                err = av_stream_add_side_data(st, AV_PKT_DATA_MASTERING_DISPLAY_METADATA,
+                                              (uint8_t *)sc->mastering,
+                                              sizeof(*sc->mastering));
+                if (err < 0)
+                    return err;
+
+                sc->mastering = NULL;
+            }
+            if (sc->coll) {
+                err = av_stream_add_side_data(st, AV_PKT_DATA_CONTENT_LIGHT_LEVEL,
+                                              (uint8_t *)sc->coll,
+                                              sc->coll_size);
+                if (err < 0)
+                    return err;
+
+                sc->coll = NULL;
             }
             break;
         }

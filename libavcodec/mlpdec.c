@@ -729,7 +729,7 @@ static int read_matrix_params(MLPDecodeContext *m, unsigned int substr, GetBitCo
         av_log(m->avctx, AV_LOG_ERROR,
                "Number of primitive matrices cannot be greater than %d.\n",
                max_primitive_matrices);
-        return AVERROR_INVALIDDATA;
+        goto error;
     }
 
     for (mat = 0; mat < s->num_primitive_matrices; mat++) {
@@ -742,12 +742,12 @@ static int read_matrix_params(MLPDecodeContext *m, unsigned int substr, GetBitCo
             av_log(m->avctx, AV_LOG_ERROR,
                     "Invalid channel %d specified as output from matrix.\n",
                     s->matrix_out_ch[mat]);
-            return AVERROR_INVALIDDATA;
+            goto error;
         }
         if (frac_bits > 14) {
             av_log(m->avctx, AV_LOG_ERROR,
                     "Too many fractional bits specified.\n");
-            return AVERROR_INVALIDDATA;
+            goto error;
         }
 
         max_chan = s->max_matrix_channel;
@@ -769,6 +769,11 @@ static int read_matrix_params(MLPDecodeContext *m, unsigned int substr, GetBitCo
     }
 
     return 0;
+error:
+    s->num_primitive_matrices = 0;
+    memset(s->matrix_out_ch, 0, sizeof(s->matrix_out_ch));
+
+    return AVERROR_INVALIDDATA;
 }
 
 /** Read channel parameters. */
@@ -824,8 +829,6 @@ static int read_channel_params(MLPDecodeContext *m, unsigned int substr,
         return AVERROR_INVALIDDATA;
     }
 
-    cp->sign_huff_offset = calculate_sign_huff(m, substr, ch);
-
     return 0;
 }
 
@@ -837,7 +840,8 @@ static int read_decoding_params(MLPDecodeContext *m, GetBitContext *gbp,
 {
     SubStream *s = &m->substream[substr];
     unsigned int ch;
-    int ret;
+    int ret = 0;
+    unsigned recompute_sho = 0;
 
     if (s->param_presence_flags & PARAM_PRESENCE)
         if (get_bits1(gbp))
@@ -860,8 +864,13 @@ static int read_decoding_params(MLPDecodeContext *m, GetBitContext *gbp,
 
     if (s->param_presence_flags & PARAM_OUTSHIFT)
         if (get_bits1(gbp)) {
-            for (ch = 0; ch <= s->max_matrix_channel; ch++)
+            for (ch = 0; ch <= s->max_matrix_channel; ch++) {
                 s->output_shift[ch] = get_sbits(gbp, 4);
+                if (s->output_shift[ch] < 0) {
+                    avpriv_request_sample(m->avctx, "Negative output_shift");
+                    s->output_shift[ch] = 0;
+                }
+            }
             if (substr == m->max_decoded_substream)
                 m->dsp.mlp_pack_output = m->dsp.mlp_select_pack_output(s->ch_assign,
                                                                        s->output_shift,
@@ -872,19 +881,36 @@ static int read_decoding_params(MLPDecodeContext *m, GetBitContext *gbp,
     if (s->param_presence_flags & PARAM_QUANTSTEP)
         if (get_bits1(gbp))
             for (ch = 0; ch <= s->max_channel; ch++) {
-                ChannelParams *cp = &s->channel_params[ch];
-
                 s->quant_step_size[ch] = get_bits(gbp, 4);
 
-                cp->sign_huff_offset = calculate_sign_huff(m, substr, ch);
+                recompute_sho |= 1<<ch;
             }
 
     for (ch = s->min_channel; ch <= s->max_channel; ch++)
-        if (get_bits1(gbp))
+        if (get_bits1(gbp)) {
+            recompute_sho |= 1<<ch;
             if ((ret = read_channel_params(m, substr, gbp, ch)) < 0)
-                return ret;
+                goto fail;
+        }
 
-    return 0;
+
+fail:
+    for (ch = 0; ch <= s->max_channel; ch++) {
+        if (recompute_sho & (1<<ch)) {
+            ChannelParams *cp = &s->channel_params[ch];
+
+            if (cp->codebook > 0 && cp->huff_lsbs < s->quant_step_size[ch]) {
+                if (ret >= 0) {
+                    av_log(m->avctx, AV_LOG_ERROR, "quant_step_size larger than huff_lsbs\n");
+                    ret = AVERROR_INVALIDDATA;
+                }
+                s->quant_step_size[ch] = 0;
+            }
+
+            cp->sign_huff_offset = calculate_sign_huff(m, substr, ch);
+        }
+    }
+    return ret;
 }
 
 #define MSB_MASK(bits)  (-1u << (bits))

@@ -106,6 +106,7 @@ static void register_all(void)
     REGISTER_FILTER(FIREQUALIZER,   firequalizer,   af);
     REGISTER_FILTER(FLANGER,        flanger,        af);
     REGISTER_FILTER(HDCD,           hdcd,           af);
+    REGISTER_FILTER(HEADPHONE,      headphone,      af);
     REGISTER_FILTER(HIGHPASS,       highpass,       af);
     REGISTER_FILTER(JOIN,           join,           af);
     REGISTER_FILTER(LADSPA,         ladspa,         af);
@@ -122,6 +123,8 @@ static void register_all(void)
     REGISTER_FILTER(SOFALIZER,      sofalizer,      af);
     REGISTER_FILTER(STEREOTOOLS,    stereotools,    af);
     REGISTER_FILTER(STEREOWIDEN,    stereowiden,    af);
+    REGISTER_FILTER(SUPEREQUALIZER, superequalizer, af);
+    REGISTER_FILTER(SURROUND,       surround,       af);
     REGISTER_FILTER(TREBLE,         treble,         af);
     REGISTER_FILTER(TREMOLO,        tremolo,        af);
     REGISTER_FILTER(VIBRATO,        vibrato,        af);
@@ -277,6 +280,7 @@ static void register_all(void)
     REGISTER_FILTER(REMOVELOGO,     removelogo,     vf);
     REGISTER_FILTER(REPEATFIELDS,   repeatfields,   vf);
     REGISTER_FILTER(REVERSE,        reverse,        vf);
+    REGISTER_FILTER(ROBERTS,        roberts,        vf);
     REGISTER_FILTER(ROTATE,         rotate,         vf);
     REGISTER_FILTER(SAB,            sab,            vf);
     REGISTER_FILTER(SCALE,          scale,          vf);
@@ -391,7 +395,7 @@ static void register_all(void)
 
 void avfilter_register_all(void)
 {
-    AVOnce control = AV_ONCE_INIT;
+    static AVOnce control = AV_ONCE_INIT;
 
     ff_thread_once(&control, register_all);
 }

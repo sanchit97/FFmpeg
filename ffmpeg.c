@@ -536,7 +536,6 @@ static void ffmpeg_cleanup(int ret)
         for (j = 0; j < ost->nb_bitstream_filters; j++)
             av_bsf_free(&ost->bsf_ctx[j]);
         av_freep(&ost->bsf_ctx);
-        av_freep(&ost->bsf_extradata_updated);
 
         av_frame_free(&ost->filtered_frame);
         av_frame_free(&ost->last_frame);
@@ -837,27 +836,9 @@ static void output_packet(OutputFile *of, AVPacket *pkt, OutputStream *ost)
                 continue;
             } else if (ret < 0)
                 goto finish;
-            /* HACK! - aac_adtstoasc updates extradata after filtering the first frame when
-             * the api states this shouldn't happen after init(). Propagate it here to the
-             * muxer and to the next filters in the chain to workaround this.
-             * TODO/FIXME - Make aac_adtstoasc use new packet side data instead of changing
-             * par_out->extradata and adapt muxers accordingly to get rid of this. */
-            if (!(ost->bsf_extradata_updated[idx - 1] & 1)) {
-                ret = avcodec_parameters_copy(ost->st->codecpar, ost->bsf_ctx[idx - 1]->par_out);
-                if (ret < 0)
-                    goto finish;
-                ost->bsf_extradata_updated[idx - 1] |= 1;
-            }
 
             /* send it to the next filter down the chain or to the muxer */
             if (idx < ost->nb_bitstream_filters) {
-                /* HACK/FIXME! - See above */
-                if (!(ost->bsf_extradata_updated[idx] & 2)) {
-                    ret = avcodec_parameters_copy(ost->bsf_ctx[idx]->par_out, ost->bsf_ctx[idx - 1]->par_out);
-                    if (ret < 0)
-                        goto finish;
-                    ost->bsf_extradata_updated[idx] |= 2;
-                }
                 ret = av_bsf_send_packet(ost->bsf_ctx[idx], pkt);
                 if (ret < 0)
                     goto finish;
@@ -2903,6 +2884,15 @@ static int init_input_stream(int ist_index, char *error, int error_len)
 
         if (!av_dict_get(ist->decoder_opts, "threads", NULL, 0))
             av_dict_set(&ist->decoder_opts, "threads", "auto", 0);
+
+        ret = hw_device_setup_for_decode(ist);
+        if (ret < 0) {
+            snprintf(error, error_len, "Device setup failed for "
+                     "decoder on input stream #%d:%d : %s",
+                     ist->file_index, ist->st->index, av_err2str(ret));
+            return ret;
+        }
+
         if ((ret = avcodec_open2(ist->dec_ctx, codec, &ist->decoder_opts)) < 0) {
             if (ret == AVERROR_EXPERIMENTAL)
                 abort_codec_experimental(codec, 0);
@@ -3460,6 +3450,14 @@ static int init_output_stream(OutputStream *ost, char *error, int error_len)
             ost->enc_ctx->hw_frames_ctx = av_buffer_ref(av_buffersink_get_hw_frames_ctx(ost->filter->filter));
             if (!ost->enc_ctx->hw_frames_ctx)
                 return AVERROR(ENOMEM);
+        } else {
+            ret = hw_device_setup_for_encode(ost);
+            if (ret < 0) {
+                snprintf(error, error_len, "Device setup failed for "
+                         "encoder on output stream #%d:%d : %s",
+                     ost->file_index, ost->index, av_err2str(ret));
+                return ret;
+            }
         }
 
         if ((ret = avcodec_open2(ost->enc_ctx, codec, &ost->encoder_opts)) < 0) {
@@ -4662,6 +4660,7 @@ static int transcode(void)
     }
 
     av_buffer_unref(&hw_device_ctx);
+    hw_device_free_all();
 
     /* finished ! */
     ret = 0;

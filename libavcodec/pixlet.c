@@ -229,6 +229,8 @@ static int read_high_coeffs(AVCodecContext *avctx, uint8_t *src, int16_t *dst, i
             cnt1 = get_bits(b, nbits);
         } else {
             pfx = 14 + ((((uint64_t)(value - 14)) >> 32) & (value - 14));
+            if (pfx < 1 || pfx > 25)
+                return AVERROR_INVALIDDATA;
             cnt1 *= (1 << pfx) - 1;
             shbits = show_bits(b, pfx);
             if (shbits <= 1) {
@@ -591,6 +593,10 @@ static int pixlet_decode_frame(AVCodecContext *avctx, void *data,
 
     width  = bytestream2_get_be32(&ctx->gb);
     height = bytestream2_get_be32(&ctx->gb);
+
+    if (    width > INT_MAX - (1U << (NB_LEVELS + 1))
+        || height > INT_MAX - (1U << (NB_LEVELS + 1)))
+        return AVERROR_INVALIDDATA;
 
     w = FFALIGN(width,  1 << (NB_LEVELS + 1));
     h = FFALIGN(height, 1 << (NB_LEVELS + 1));
