@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2017 Sanchit Sinha
- * Copyright (c) 2017 Paul B Mahol
  * This file is part of FFmpeg.
  *
  * FFmpeg is free software; you can redistribute it and/or
@@ -83,9 +82,17 @@ static int query_formats(AVFilterContext *ctx)
 {
     AmbisonicContext *s     = ctx->priv;
     AVFilterFormats *formats = NULL;
-    AVFilterChannelLayouts *layout = NULL;
+    AVFilterChannelLayouts *layouts = NULL;
     int temp;
     int ret;
+    int i,j;
+    for(i=0;i<22;i++)
+    {
+        for(j=0;j<9;j++)
+        {
+            s->decode_matrix[i][j]=0;
+        }
+    }
 
     //will be changed
     s->order=1;//first order ambisonics
@@ -126,22 +133,36 @@ static int query_formats(AVFilterContext *ctx)
         break;
     }
 
-    int i,j;
-    for(i=0;i<22;i++)
-    {
-        for(j=0;j<9;j++)
-        {
-            s->decode_matrix[i][j]=0;
-        }
-    }
-
-    if ((ret = ff_add_format        (&formats, AV_SAMPLE_FMT_FLTP   )) < 0 ||
-        (ret = ff_set_common_formats              (ctx    , formats )) < 0 ||
-        (ret = ff_add_channel_layout                 (&layout , temp)) < 0 ||
-        (ret = ff_set_common_channel_layouts     (ctx    , layout   )) < 0)
+    ret = ff_add_format(&formats, AV_SAMPLE_FMT_FLTP);
+    if (ret)
+        return ret;
+    ret = ff_set_common_formats(ctx, formats);
+    if (ret)
         return ret;
 
+
+    ret = ff_add_channel_layout(&layouts, temp);
+    if (ret)
+        return ret;
+
+    ret = ff_channel_layouts_ref(layouts, &ctx->outputs[0]->in_channel_layouts);
+    if (ret)
+        return ret;
+
+    layouts = NULL;
+
+    ret = ff_add_channel_layout(&layouts, AV_CH_LAYOUT_4POINT0);
+    if (ret)
+        return ret;
+
+    ret = ff_channel_layouts_ref(layouts, &ctx->inputs[0]->out_channel_layouts);
+    if (ret)
+        return ret;
+
+
     formats = ff_all_samplerates();
+    if(!formats)
+        return AVERROR(ENOMEM);
     return ff_set_common_samplerates(ctx, formats);
 }
 
@@ -265,24 +286,77 @@ static float multiply(float decode_matrix[22][9],int row, float *vars[22], int s
     return sum;
 }
 
-static void configure_matrix(float matrix[22][9], int channels, int speakers,int dimension)
+static void configure_matrix(AmbisonicContext *s)
 {
-    matrix[0][0]=2*root8;
-    matrix[0][1]=root8;
-    matrix[0][2]=root8;
-    matrix[0][3]=0;
-    matrix[1][0]=2*root8;
-    matrix[1][1]=(-1)*root8;
-    matrix[1][2]=root8;
-    matrix[1][3]=0;
-    matrix[2][0]=2*root8;
-    matrix[2][1]=(-1)*root8;
-    matrix[2][2]=(-1)*root8;
-    matrix[2][3]=0;
-    matrix[3][0]=2*root8;
-    matrix[3][1]=root8;
-    matrix[3][2]=(-1)*root8;
-    matrix[3][3]=0;
+    int channels=s->nb_channels;
+    int speakers=s->nb_sp;
+    int dimension=s->dimension;
+
+    switch(s->dimension)
+    {
+        case 2:
+        switch(s->nb_sp)
+        {
+            // case 1:
+            // break;
+            // case 2:
+            // break;
+            case 4:
+                s->decode_matrix[0][0]=2*root8;
+                s->decode_matrix[0][1]=root8;
+                s->decode_matrix[0][2]=root8;
+                s->decode_matrix[0][3]=0;
+                s->decode_matrix[1][0]=2*root8;
+                s->decode_matrix[1][1]=(-1)*root8;
+                s->decode_matrix[1][2]=root8;
+                s->decode_matrix[1][3]=0;
+                s->decode_matrix[2][0]=2*root8;
+                s->decode_matrix[2][1]=(-1)*root8;
+                s->decode_matrix[2][2]=(-1)*root8;
+                s->decode_matrix[2][3]=0;
+                s->decode_matrix[3][0]=2*root8;
+                s->decode_matrix[3][1]=root8;
+                s->decode_matrix[3][2]=(-1)*root8;
+                s->decode_matrix[3][3]=0;
+            break;
+            case 5:
+                s->decode_matrix[0][0]=2*root8;
+                s->decode_matrix[0][1]=root8;
+                s->decode_matrix[0][2]=root8;
+                s->decode_matrix[0][3]=0;
+                s->decode_matrix[1][0]=2*root8;
+                s->decode_matrix[1][1]=(-1)*root8;
+                s->decode_matrix[1][2]=root8;
+                s->decode_matrix[1][3]=0;
+                s->decode_matrix[2][0]=2*root8;
+                s->decode_matrix[2][1]=(-1)*root8;
+                s->decode_matrix[2][2]=(-1)*root8;
+                s->decode_matrix[2][3]=0;
+                s->decode_matrix[3][0]=2*root8;
+                s->decode_matrix[3][1]=root8;
+                s->decode_matrix[3][2]=(-1)*root8;
+                s->decode_matrix[3][3]=0;
+                s->decode_matrix[4][0]=2*root8;
+                s->decode_matrix[4][1]=root8;
+                s->decode_matrix[4][2]=(-1)*root8;
+                s->decode_matrix[4][3]=0;
+            break;
+            case 6:
+            break;
+            case 7:
+            break;
+            case 8:
+            break;
+
+        }
+        break;
+        case 3:
+        switch(s->nb_sp)
+        {
+            // case
+        }
+        break;
+    }
 }
 
 static int filter_frame(AVFilterLink *inlink, AVFrame *in)
@@ -292,21 +366,17 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     AVFilterLink *outlink = ctx->outputs[0];
     AVFrame *out_buf;
     int itr;
-    float *vars[22];
+    float *vars[9];
     float calc[22]={0};
     float *c[22];
     int i;
 
-    if (av_frame_is_writable(in)) {
-        out_buf = in;
-    } else {
-        out_buf = ff_get_audio_buffer(inlink, in->nb_samples);
-        if (!out_buf){
-            av_frame_free(&in);
-            return AVERROR(ENOMEM);
-        }
-        av_frame_copy_props(out_buf, in);
+    out_buf = ff_get_audio_buffer(outlink, in->nb_samples);
+    if (!out_buf){
+        av_frame_free(&in);
+        return AVERROR(ENOMEM);
     }
+    av_frame_copy_props(out_buf, in);
 
     s->filter = shelf_flt;
 
@@ -334,7 +404,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     }
 
 
-    configure_matrix(s->decode_matrix,s->nb_channels,s->nb_sp,s->dimension);
+    configure_matrix(s);
+
     for(i=0;i<s->nb_channels;i++)
     {
         vars[i]=(float*)in->extended_data[i];
@@ -351,6 +422,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
         {
             calc[i]=multiply(s->decode_matrix,i,vars,itr,s->nb_channels);
         }
+
         for(i=0;i<s->nb_sp;i++)
         {
             c[i][itr]=calc[i];
