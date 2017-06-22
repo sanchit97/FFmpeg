@@ -27,8 +27,6 @@
 #include <math.h>
 #include <stdio.h>
 
-#define root8 sqrt(8)
-
 enum FilterType {
     shelf,
     phaseshift
@@ -70,8 +68,8 @@ typedef struct AmbisonicContext {
 static const AVOption ambisonic_options[] = {
     {"dimension","Set 2D or 3D layout", OFFSET(dimension), AV_OPT_TYPE_INT, {.i64 = 2}, 0, 3, FLAGS},
     {"d","Set 2D or 3D layout", OFFSET(dimension), AV_OPT_TYPE_INT, {.i64 = 2}, 0, 3, FLAGS},
-    {"speakers","Set number of speakers(regular)", OFFSET(nb_sp), AV_OPT_TYPE_INT, {.i64=4}, 3, 10, FLAGS},
-    {"s","Set number of speakers(regular)", OFFSET(nb_sp), AV_OPT_TYPE_INT, {.i64=4}, 3, 10, FLAGS},
+    {"speakers","Set number of speakers(regular)", OFFSET(nb_sp), AV_OPT_TYPE_INT, {.i64=4}, 1, 10, FLAGS},
+    {"s","Set number of speakers(regular)", OFFSET(nb_sp), AV_OPT_TYPE_INT, {.i64=4}, 1, 10, FLAGS},
     {"enable_shelf","Set if shelf filtering is required",OFFSET(enable_shelf), AV_OPT_TYPE_INT, {.i64=1}, 0, 1, FLAGS},
     {"e_s","Set if shelf filtering is required",OFFSET(enable_shelf), AV_OPT_TYPE_INT, {.i64=1}, 0, 1, FLAGS},
     {NULL}
@@ -297,57 +295,57 @@ static void configure_matrix(AmbisonicContext *s)
         case 2:
         switch(s->nb_sp)
         {
-            // case 1:
-            // break;
-            // case 2:
-            // break;
+            case 1:
+                s->decode_matrix[0][0]=0.22156;
+                s->decode_matrix[1][0]=0.22156;
+                s->decode_matrix[2][0]=0.22156;
+                s->decode_matrix[3][0]=0.22156;
+            break;
+            case 3:
+                s->decode_matrix[0][0]=0.17836;s->decode_matrix[0][1]=0.32555;s->decode_matrix[0][2]=0.18795;
+                s->decode_matrix[1][0]=0.17836;s->decode_matrix[1][1]=0.0;s->decode_matrix[1][2]=-0.37591;
+                s->decode_matrix[2][0]=0.17836;s->decode_matrix[2][1]=-0.32555;s->decode_matrix[2][2]=0.18795;
+            break;
             case 4:
-                s->decode_matrix[0][0]=2*root8;
-                s->decode_matrix[0][1]=root8;
-                s->decode_matrix[0][2]=root8;
-                s->decode_matrix[0][3]=0;
-                s->decode_matrix[1][0]=2*root8;
-                s->decode_matrix[1][1]=(-1)*root8;
-                s->decode_matrix[1][2]=root8;
-                s->decode_matrix[1][3]=0;
-                s->decode_matrix[2][0]=2*root8;
-                s->decode_matrix[2][1]=(-1)*root8;
-                s->decode_matrix[2][2]=(-1)*root8;
-                s->decode_matrix[2][3]=0;
-                s->decode_matrix[3][0]=2*root8;
-                s->decode_matrix[3][1]=root8;
-                s->decode_matrix[3][2]=(-1)*root8;
-                s->decode_matrix[3][3]=0;
+                s->decode_matrix[0][0]=0.39388;s->decode_matrix[0][1]=0.18690;s->decode_matrix[0][2]=0.18690;
+                s->decode_matrix[1][0]=0.39388;s->decode_matrix[1][1]=(-1)*0.18690;s->decode_matrix[1][2]=0.18690;
+                s->decode_matrix[2][0]=0.39388;s->decode_matrix[2][1]=(-1)*0.18690;s->decode_matrix[2][2]=(-1)*0.18690;
+                s->decode_matrix[3][0]=0.39388;s->decode_matrix[3][1]=0.18690;s->decode_matrix[3][2]=(-1)*0.18690;
             break;
             case 5:
-                s->decode_matrix[0][0]=2*root8;
-                s->decode_matrix[0][1]=root8;
-                s->decode_matrix[0][2]=root8;
-                s->decode_matrix[0][3]=0;
-                s->decode_matrix[1][0]=2*root8;
-                s->decode_matrix[1][1]=(-1)*root8;
-                s->decode_matrix[1][2]=root8;
-                s->decode_matrix[1][3]=0;
-                s->decode_matrix[2][0]=2*root8;
-                s->decode_matrix[2][1]=(-1)*root8;
-                s->decode_matrix[2][2]=(-1)*root8;
-                s->decode_matrix[2][3]=0;
-                s->decode_matrix[3][0]=2*root8;
-                s->decode_matrix[3][1]=root8;
-                s->decode_matrix[3][2]=(-1)*root8;
-                s->decode_matrix[3][3]=0;
-                s->decode_matrix[4][0]=2*root8;
-                s->decode_matrix[4][1]=root8;
-                s->decode_matrix[4][2]=(-1)*root8;
-                s->decode_matrix[4][3]=0;
+                s->decode_matrix[0][0]=0.20195;s->decode_matrix[0][1]=0;s->decode_matrix[0][2]=0.33420;
+                s->decode_matrix[1][0]=0.11356;s->decode_matrix[1][1]=0.2901;s->decode_matrix[1][2]=0.04186;
+                s->decode_matrix[2][0]=0.19654;s->decode_matrix[2][1]=-0.07993;s->decode_matrix[2][2]=-0.34782;
+                s->decode_matrix[3][0]=0.19654;s->decode_matrix[3][1]=0.07993;s->decode_matrix[3][2]=-0.34782;
+                s->decode_matrix[4][0]=0.19654;s->decode_matrix[4][1]=-0.2901;s->decode_matrix[4][2]=0.04186;
             break;
             case 6:
+                s->decode_matrix[0][0]=0.26259;s->decode_matrix[0][1]=0;s->decode_matrix[0][2]=0.31326;
+                s->decode_matrix[1][0]=0.26259;s->decode_matrix[1][1]=0.27129;s->decode_matrix[1][2]=0.15663;
+                s->decode_matrix[2][0]=0.26259;s->decode_matrix[2][1]=0.27129;s->decode_matrix[2][2]=-0.15663;
+                s->decode_matrix[3][0]=0.26259;s->decode_matrix[3][1]=0;s->decode_matrix[3][2]=-0.31326;
+                s->decode_matrix[4][0]=0.26259;s->decode_matrix[4][1]=-0.27129;s->decode_matrix[4][2]=-0.15663;
+                s->decode_matrix[5][0]=0.26259;s->decode_matrix[5][1]=-0.27129;s->decode_matrix[5][2]=0.15663;
             break;
             case 7:
+                s->decode_matrix[0][0]=0.22501;s->decode_matrix[0][1]=-0.0 ;s->decode_matrix[0][2]=0.26846;
+                s->decode_matrix[1][0]=0.22507;s->decode_matrix[1][1]=0.20989;s->decode_matrix[1][2]=0.16741;
+                s->decode_matrix[2][0]=0.22507;s->decode_matrix[2][1]=0.26180;s->decode_matrix[2][2]=-0.05969;
+                s->decode_matrix[3][0]=0.22511;s->decode_matrix[3][1]=0.11651;s->decode_matrix[3][2]=-0.24195;
+                s->decode_matrix[4][0]=0.22511;s->decode_matrix[4][1]=-0.11651;s->decode_matrix[4][2]=-0.24195;
+                s->decode_matrix[5][0]=0.22507;s->decode_matrix[5][1]=-0.26180;s->decode_matrix[5][2]=-0.05969;
+                s->decode_matrix[6][0]=0.22507;s->decode_matrix[6][1]=-0.20989;s->decode_matrix[6][2]=0.16741;
             break;
             case 8:
+                s->decode_matrix[0][0]=0.19694;s->decode_matrix[0][1]=0.08991;s->decode_matrix[0][2]=0.21706;
+                s->decode_matrix[1][0]=0.19694;s->decode_matrix[1][1]=0.21706;s->decode_matrix[1][2]=0.08991;
+                s->decode_matrix[2][0]=0.19694;s->decode_matrix[2][1]=0.21706;s->decode_matrix[2][2]=-0.08991;
+                s->decode_matrix[3][0]=0.19694;s->decode_matrix[3][1]=0.08991;s->decode_matrix[3][2]=-0.21706;
+                s->decode_matrix[4][0]=0.19694;s->decode_matrix[4][1]=-0.08991;s->decode_matrix[4][2]=-0.21706;
+                s->decode_matrix[5][0]=0.19694;s->decode_matrix[5][1]=-0.21706;s->decode_matrix[5][2]=-0.08991;
+                s->decode_matrix[6][0]=0.19694;s->decode_matrix[6][1]=-0.21706;s->decode_matrix[6][2]=0.08991;
+                s->decode_matrix[7][0]=0.19694;s->decode_matrix[7][1]=-0.08991;s->decode_matrix[7][2]=0.21706;
             break;
-
         }
         break;
         case 3:
