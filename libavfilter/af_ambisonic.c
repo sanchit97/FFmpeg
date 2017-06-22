@@ -37,6 +37,90 @@ typedef struct Cache {
     double o1, o2;
 } Cache;
 
+enum Layouts2D {
+    MONO,
+    STEREO,
+    TRIANGLE,
+    SQUARE,
+    PENTAGON,
+    HEXAGON,
+    HEPTAGON,
+    OCTAGON
+};
+
+enum Layouts3D {
+    CUBE=8,
+    DODECAHEDRON=20,
+
+};
+
+static const struct
+{
+    float matrix[22][9];
+} ambisonic_matrix2d[]={
+        [MONO]={
+            .matrix={
+                {0.22156, 0, 0, 0},
+            },
+        },
+        [TRIANGLE]={
+            .matrix={
+                {0.17836, 0.32555, 0.18795},
+                {0.17836, 0      ,-0.37591},
+                {0.17836,-0.32555, 0.18795},
+            },
+        },
+        [SQUARE]={
+            .matrix={
+                {0.39388, 0.18690, 0.18690, 0},
+                {0.39388,-0.18690, 0.18690, 0},
+                {0.39388,-0.18690,-0.18690, 0},
+                {0.39388, 0.18690,-0.18690, 0},
+            },
+        },
+        [PENTAGON]={
+            .matrix={
+                {0.20195, 0      , 0.33420, 0},
+                {0.11356, 0.2901 , 0.04186, 0},
+                {0.19654,-0.07993,-0.34782, 0},
+                {0.19654, 0.07993,-0.34782, 0},
+                {0.19654,-0.2901 , 0.04186, 0},
+            },
+        },
+        [HEXAGON]={
+            .matrix={
+                {0.26259, 0      ,  0.31326, 0},
+                {0.26259, 0.27129,  0.15663, 0},
+                {0.26259, 0.27129, -0.15663, 0},
+                {0.26259, 0      , -0.31326, 0},
+                {0.26259,-0.27129, -0.15663, 0},
+                {0.26259,-0.27129,  0.15663, 0},
+            },
+        },
+        [HEPTAGON]={
+            .matrix={
+                {0.22501,-0.0    ,  0.26846, 0},
+                {0.22507, 0.20989,  0.16741, 0},
+                {0.22507, 0.26180, -0.05969, 0},
+                {0.22511, 0.11651, -0.24195, 0},
+                {0.22511,-0.11651, -0.24195, 0},
+                {0.22507,-0.26180, -0.05969, 0},
+                {0.22507,-0.20989,  0.16741, 0},
+            },
+        },
+        [OCTAGON]={
+            .matrix={
+                {0.19694,  0.08991,  0.21706, 0},
+                {0.19694,  0.21706,  0.08991, 0},
+                {0.19694,  0.21706, -0.08991, 0},
+                {0.19694,  0.08991, -0.21706, 0},
+                {0.19694, -0.08991, -0.21706, 0},
+                {0.19694, -0.21706, -0.08991, 0},
+                {0.19694, -0.21706,  0.08991, 0},
+                {0.19694, -0.08991,  0.21706, 0},
+            },
+        },
+    };
 
 typedef struct AmbisonicContext {
     const AVClass *class;
@@ -84,13 +168,8 @@ static int query_formats(AVFilterContext *ctx)
     int temp;
     int ret;
     int i,j;
-    for(i=0;i<22;i++)
-    {
-        for(j=0;j<9;j++)
-        {
-            s->decode_matrix[i][j]=0;
-        }
-    }
+
+    memset(s->decode_matrix,0,22*9);
 
     //will be changed
     s->order=1;//first order ambisonics
@@ -277,6 +356,7 @@ static float multiply(float decode_matrix[22][9],int row, float *vars[22], int s
 {
     int j;
     float sum=0;
+
     for(j=0;j<nb_channels;j++)
     {
         sum+=(decode_matrix[row][j]*vars[j][sample_no]);
@@ -290,71 +370,71 @@ static void configure_matrix(AmbisonicContext *s)
     int speakers=s->nb_sp;
     int dimension=s->dimension;
 
-    switch(s->dimension)
-    {
-        case 2:
-        switch(s->nb_sp)
-        {
-            case 1:
-                s->decode_matrix[0][0]=0.22156;
-                s->decode_matrix[1][0]=0.22156;
-                s->decode_matrix[2][0]=0.22156;
-                s->decode_matrix[3][0]=0.22156;
-            break;
-            case 3:
-                s->decode_matrix[0][0]=0.17836;s->decode_matrix[0][1]=0.32555;s->decode_matrix[0][2]=0.18795;
-                s->decode_matrix[1][0]=0.17836;s->decode_matrix[1][1]=0.0;s->decode_matrix[1][2]=-0.37591;
-                s->decode_matrix[2][0]=0.17836;s->decode_matrix[2][1]=-0.32555;s->decode_matrix[2][2]=0.18795;
-            break;
-            case 4:
-                s->decode_matrix[0][0]=0.39388;s->decode_matrix[0][1]=0.18690;s->decode_matrix[0][2]=0.18690;
-                s->decode_matrix[1][0]=0.39388;s->decode_matrix[1][1]=(-1)*0.18690;s->decode_matrix[1][2]=0.18690;
-                s->decode_matrix[2][0]=0.39388;s->decode_matrix[2][1]=(-1)*0.18690;s->decode_matrix[2][2]=(-1)*0.18690;
-                s->decode_matrix[3][0]=0.39388;s->decode_matrix[3][1]=0.18690;s->decode_matrix[3][2]=(-1)*0.18690;
-            break;
-            case 5:
-                s->decode_matrix[0][0]=0.20195;s->decode_matrix[0][1]=0;s->decode_matrix[0][2]=0.33420;
-                s->decode_matrix[1][0]=0.11356;s->decode_matrix[1][1]=0.2901;s->decode_matrix[1][2]=0.04186;
-                s->decode_matrix[2][0]=0.19654;s->decode_matrix[2][1]=-0.07993;s->decode_matrix[2][2]=-0.34782;
-                s->decode_matrix[3][0]=0.19654;s->decode_matrix[3][1]=0.07993;s->decode_matrix[3][2]=-0.34782;
-                s->decode_matrix[4][0]=0.19654;s->decode_matrix[4][1]=-0.2901;s->decode_matrix[4][2]=0.04186;
-            break;
-            case 6:
-                s->decode_matrix[0][0]=0.26259;s->decode_matrix[0][1]=0;s->decode_matrix[0][2]=0.31326;
-                s->decode_matrix[1][0]=0.26259;s->decode_matrix[1][1]=0.27129;s->decode_matrix[1][2]=0.15663;
-                s->decode_matrix[2][0]=0.26259;s->decode_matrix[2][1]=0.27129;s->decode_matrix[2][2]=-0.15663;
-                s->decode_matrix[3][0]=0.26259;s->decode_matrix[3][1]=0;s->decode_matrix[3][2]=-0.31326;
-                s->decode_matrix[4][0]=0.26259;s->decode_matrix[4][1]=-0.27129;s->decode_matrix[4][2]=-0.15663;
-                s->decode_matrix[5][0]=0.26259;s->decode_matrix[5][1]=-0.27129;s->decode_matrix[5][2]=0.15663;
-            break;
-            case 7:
-                s->decode_matrix[0][0]=0.22501;s->decode_matrix[0][1]=-0.0 ;s->decode_matrix[0][2]=0.26846;
-                s->decode_matrix[1][0]=0.22507;s->decode_matrix[1][1]=0.20989;s->decode_matrix[1][2]=0.16741;
-                s->decode_matrix[2][0]=0.22507;s->decode_matrix[2][1]=0.26180;s->decode_matrix[2][2]=-0.05969;
-                s->decode_matrix[3][0]=0.22511;s->decode_matrix[3][1]=0.11651;s->decode_matrix[3][2]=-0.24195;
-                s->decode_matrix[4][0]=0.22511;s->decode_matrix[4][1]=-0.11651;s->decode_matrix[4][2]=-0.24195;
-                s->decode_matrix[5][0]=0.22507;s->decode_matrix[5][1]=-0.26180;s->decode_matrix[5][2]=-0.05969;
-                s->decode_matrix[6][0]=0.22507;s->decode_matrix[6][1]=-0.20989;s->decode_matrix[6][2]=0.16741;
-            break;
-            case 8:
-                s->decode_matrix[0][0]=0.19694;s->decode_matrix[0][1]=0.08991;s->decode_matrix[0][2]=0.21706;
-                s->decode_matrix[1][0]=0.19694;s->decode_matrix[1][1]=0.21706;s->decode_matrix[1][2]=0.08991;
-                s->decode_matrix[2][0]=0.19694;s->decode_matrix[2][1]=0.21706;s->decode_matrix[2][2]=-0.08991;
-                s->decode_matrix[3][0]=0.19694;s->decode_matrix[3][1]=0.08991;s->decode_matrix[3][2]=-0.21706;
-                s->decode_matrix[4][0]=0.19694;s->decode_matrix[4][1]=-0.08991;s->decode_matrix[4][2]=-0.21706;
-                s->decode_matrix[5][0]=0.19694;s->decode_matrix[5][1]=-0.21706;s->decode_matrix[5][2]=-0.08991;
-                s->decode_matrix[6][0]=0.19694;s->decode_matrix[6][1]=-0.21706;s->decode_matrix[6][2]=0.08991;
-                s->decode_matrix[7][0]=0.19694;s->decode_matrix[7][1]=-0.08991;s->decode_matrix[7][2]=0.21706;
-            break;
-        }
-        break;
-        case 3:
-        switch(s->nb_sp)
-        {
-            // case
-        }
-        break;
-    }
+    // switch(s->dimension)
+    // {
+    //     case 2:
+    //     switch(s->nb_sp)
+    //     {
+    //         case 1:
+    //             s->decode_matrix[0][0]=0.22156;
+    //             s->decode_matrix[1][0]=0.22156;
+    //             s->decode_matrix[2][0]=0.22156;
+    //             s->decode_matrix[3][0]=0.22156;
+    //         break;
+    //         case 3:
+    //             s->decode_matrix[0][0]=0.17836;s->decode_matrix[0][1]=0.32555;s->decode_matrix[0][2]=0.18795;
+    //             s->decode_matrix[1][0]=0.17836;s->decode_matrix[1][1]=0.0;s->decode_matrix[1][2]=-0.37591;
+    //             s->decode_matrix[2][0]=0.17836;s->decode_matrix[2][1]=-0.32555;s->decode_matrix[2][2]=0.18795;
+    //         break;
+    //         case 4:
+    //             s->decode_matrix[0][0]=0.39388;s->decode_matrix[0][1]=0.18690;s->decode_matrix[0][2]=0.18690;
+    //             s->decode_matrix[1][0]=0.39388;s->decode_matrix[1][1]=(-1)*0.18690;s->decode_matrix[1][2]=0.18690;
+    //             s->decode_matrix[2][0]=0.39388;s->decode_matrix[2][1]=(-1)*0.18690;s->decode_matrix[2][2]=(-1)*0.18690;
+    //             s->decode_matrix[3][0]=0.39388;s->decode_matrix[3][1]=0.18690;s->decode_matrix[3][2]=(-1)*0.18690;
+    //         break;
+    //         case 5:
+    //             s->decode_matrix[0][0]=0.20195;s->decode_matrix[0][1]=0;s->decode_matrix[0][2]=        0.33420;
+    //             s->decode_matrix[1][0]=0.11356;s->decode_matrix[1][1]=0.2901;s->decode_matrix[1][2]=   0.04186;
+    //             s->decode_matrix[2][0]=0.19654;s->decode_matrix[2][1]=-0.07993;s->decode_matrix[2][2]=-0.34782;
+    //             s->decode_matrix[3][0]=0.19654;s->decode_matrix[3][1]=0.07993;s->decode_matrix[3][2]= -0.34782;
+    //             s->decode_matrix[4][0]=0.19654;s->decode_matrix[4][1]=-0.2901;s->decode_matrix[4][2]=  0.04186;
+    //         break;
+    //         case 6:
+    //             s->decode_matrix[0][0]=0.26259;s->decode_matrix[0][1]=0       ;s->decode_matrix[0][2]= 0.31326;
+    //             s->decode_matrix[1][0]=0.26259;s->decode_matrix[1][1]=0.27129 ;s->decode_matrix[1][2]= 0.15663;
+    //             s->decode_matrix[2][0]=0.26259;s->decode_matrix[2][1]=0.27129 ;s->decode_matrix[2][2]=-0.15663;
+    //             s->decode_matrix[3][0]=0.26259;s->decode_matrix[3][1]=0       ;s->decode_matrix[3][2]=-0.31326;
+    //             s->decode_matrix[4][0]=0.26259;s->decode_matrix[4][1]=-0.27129;s->decode_matrix[4][2]=-0.15663;
+    //             s->decode_matrix[5][0]=0.26259;s->decode_matrix[5][1]=-0.27129;s->decode_matrix[5][2]= 0.15663;
+    //         break;
+    //         case 7:
+    //             s->decode_matrix[0][0]=0.22501;s->decode_matrix[0][1]= -0.0    ;s->decode_matrix[0][2]= 0.26846;
+    //             s->decode_matrix[1][0]=0.22507;s->decode_matrix[1][1]= 0.20989 ;s->decode_matrix[1][2]= 0.16741;
+    //             s->decode_matrix[2][0]=0.22507;s->decode_matrix[2][1]= 0.26180 ;s->decode_matrix[2][2]=-0.05969;
+    //             s->decode_matrix[3][0]=0.22511;s->decode_matrix[3][1]= 0.11651 ;s->decode_matrix[3][2]=-0.24195;
+    //             s->decode_matrix[4][0]=0.22511;s->decode_matrix[4][1]= -0.11651;s->decode_matrix[4][2]=-0.24195;
+    //             s->decode_matrix[5][0]=0.22507;s->decode_matrix[5][1]= -0.26180;s->decode_matrix[5][2]=-0.05969;
+    //             s->decode_matrix[6][0]=0.22507;s->decode_matrix[6][1]= -0.20989;s->decode_matrix[6][2]= 0.16741;
+    //         break;
+    //         case 8:
+    //             s->decode_matrix[0][0]=0.19694;s->decode_matrix[0][1]= 0.08991;s->decode_matrix[0][2]= 0.21706;
+    //             s->decode_matrix[1][0]=0.19694;s->decode_matrix[1][1]= 0.21706;s->decode_matrix[1][2]= 0.08991;
+    //             s->decode_matrix[2][0]=0.19694;s->decode_matrix[2][1]= 0.21706;s->decode_matrix[2][2]=-0.08991;
+    //             s->decode_matrix[3][0]=0.19694;s->decode_matrix[3][1]= 0.08991;s->decode_matrix[3][2]=-0.21706;
+    //             s->decode_matrix[4][0]=0.19694;s->decode_matrix[4][1]=-0.08991;s->decode_matrix[4][2]=-0.21706;
+    //             s->decode_matrix[5][0]=0.19694;s->decode_matrix[5][1]=-0.21706;s->decode_matrix[5][2]=-0.08991;
+    //             s->decode_matrix[6][0]=0.19694;s->decode_matrix[6][1]=-0.21706;s->decode_matrix[6][2]= 0.08991;
+    //             s->decode_matrix[7][0]=0.19694;s->decode_matrix[7][1]=-0.08991;s->decode_matrix[7][2]= 0.21706;
+    //         break;
+    //     }
+    //     break;
+    //     case 3:
+    //     switch(s->nb_sp)
+    //     {
+    //         // case
+    //     }
+    //     break;
+    // }
 }
 
 static int filter_frame(AVFilterLink *inlink, AVFrame *in)
@@ -402,7 +482,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     }
 
 
-    configure_matrix(s);
+    // configure_matrix(s);
 
     for(i=0;i<s->nb_channels;i++)
     {
@@ -418,7 +498,11 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     {
         for(i=0;i<s->nb_sp;i++)
         {
-            calc[i]=multiply(s->decode_matrix,i,vars,itr,s->nb_channels);
+            if(s->dimension==2){
+                calc[i]=multiply(ambisonic_matrix2d[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
+            } else {
+                // calc[i]=multiply(ambisonic_matrix3d[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
+            }
         }
 
         for(i=0;i<s->nb_sp;i++)
