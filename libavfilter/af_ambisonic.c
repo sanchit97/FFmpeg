@@ -119,6 +119,22 @@ static const struct {
     },
 };
 
+static const struct {
+    float matrix[22][9];
+} ambisonic_matrix3d[]= {
+    [8]={
+        .matrix={
+            {0.14269, 0.13909,  0.28611, 0.13909},
+            {0.14269, 0.13909, -0.28611, 0.13909},
+            {0.14269,-0.13909,  0.28611, 0.13909},
+            {0.14269,-0.13909, -0.28611, 0.13909},
+            {0.14269, 0.13909,  0.28611,-0.13909},
+            {0.14269, 0.13909, -0.28611,-0.13909},
+            {0.14269,-0.13909,  0.28611,-0.13909},
+            {0.14269,-0.13909, -0.28611,-0.13909},
+        },
+    },
+};
 typedef struct AmbisonicContext {
     const AVClass *class;
     enum FilterType filter_type;
@@ -186,6 +202,8 @@ static int query_formats(AVFilterContext *ctx)
             default: temp=AV_CH_LAYOUT_4POINT0;
         } break;
         case 3:
+            case 8 :  temp=AV_CH_LAYOUT_OCTAGONAL;     break;
+            default:  temp=AV_CH_LAYOUT_OCTAGONAL;     break;
         break;
     }
 
@@ -391,7 +409,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
             if(s->dimension==2){
                 calc[i]=multiply(ambisonic_matrix2d[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
             } else {
-                // calc[i]=multiply(ambisonic_matrix3d[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
+                calc[i]=multiply(ambisonic_matrix3d[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
             }
         }
 
