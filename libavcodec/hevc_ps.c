@@ -941,9 +941,9 @@ int ff_hevc_parse_sps(HEVCSPS *sps, GetBitContext *gb, unsigned int *sps_id,
         sps->temporal_layer[i].max_dec_pic_buffering = get_ue_golomb_long(gb) + 1;
         sps->temporal_layer[i].num_reorder_pics      = get_ue_golomb_long(gb);
         sps->temporal_layer[i].max_latency_increase  = get_ue_golomb_long(gb) - 1;
-        if (sps->temporal_layer[i].max_dec_pic_buffering > HEVC_MAX_DPB_SIZE) {
+        if (sps->temporal_layer[i].max_dec_pic_buffering > (unsigned)HEVC_MAX_DPB_SIZE) {
             av_log(avctx, AV_LOG_ERROR, "sps_max_dec_pic_buffering_minus1 out of range: %d\n",
-                   sps->temporal_layer[i].max_dec_pic_buffering - 1);
+                   sps->temporal_layer[i].max_dec_pic_buffering - 1U);
             return AVERROR_INVALIDDATA;
         }
         if (sps->temporal_layer[i].num_reorder_pics > sps->temporal_layer[i].max_dec_pic_buffering - 1) {
@@ -1602,20 +1602,22 @@ int ff_hevc_decode_nal_pps(GetBitContext *gb, AVCodecContext *avctx,
         pps->deblocking_filter_override_enabled_flag = get_bits1(gb);
         pps->disable_dbf                             = get_bits1(gb);
         if (!pps->disable_dbf) {
-            pps->beta_offset = get_se_golomb(gb) * 2;
-            pps->tc_offset = get_se_golomb(gb) * 2;
-            if (pps->beta_offset/2 < -6 || pps->beta_offset/2 > 6) {
+            int beta_offset_div2 = get_se_golomb(gb);
+            int tc_offset_div2   = get_se_golomb(gb) ;
+            if (beta_offset_div2 < -6 || beta_offset_div2 > 6) {
                 av_log(avctx, AV_LOG_ERROR, "pps_beta_offset_div2 out of range: %d\n",
-                       pps->beta_offset/2);
+                       beta_offset_div2);
                 ret = AVERROR_INVALIDDATA;
                 goto err;
             }
-            if (pps->tc_offset/2 < -6 || pps->tc_offset/2 > 6) {
+            if (tc_offset_div2 < -6 || tc_offset_div2 > 6) {
                 av_log(avctx, AV_LOG_ERROR, "pps_tc_offset_div2 out of range: %d\n",
-                       pps->tc_offset/2);
+                       tc_offset_div2);
                 ret = AVERROR_INVALIDDATA;
                 goto err;
             }
+            pps->beta_offset = 2 * beta_offset_div2;
+            pps->tc_offset   = 2 *   tc_offset_div2;
         }
     }
 

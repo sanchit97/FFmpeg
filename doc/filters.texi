@@ -4859,6 +4859,7 @@ Available values for component modes are:
 @item dodge
 @item freeze
 @item exclusion
+@item extremity
 @item glow
 @item hardlight
 @item hardmix
@@ -10761,14 +10762,12 @@ force packed RGB output
 
 @item gbrp
 force planar RGB output
+
+@item auto
+automatically pick format
 @end table
 
 Default value is @samp{yuv420}.
-
-@item rgb @emph{(deprecated)}
-If set to 1, force the filter to accept inputs in the RGB
-color space. Default value is 0. This option is deprecated, use
-@option{format} instead.
 
 @item repeatlast
 If set to 1, force the filter to draw the last overlay frame over the
