@@ -151,6 +151,7 @@ typedef struct AmbisonicContext {
     double b0, b1, b2;
     Cache *cache;
     float decode_matrix[22][9];
+    char* sp_layout;
 
 
     void (*filter)(struct AmbisonicContext *s, const void *ibuf, void *obuf, int len,
@@ -163,12 +164,10 @@ typedef struct AmbisonicContext {
 #define FLAGS AV_OPT_FLAG_AUDIO_PARAM|AV_OPT_FLAG_FILTERING_PARAM
 
 static const AVOption ambisonic_options[] = {
-    {"dimension","Set 2D or 3D layout", OFFSET(dimension), AV_OPT_TYPE_INT, {.i64 = 2}, 0, 3, FLAGS},
-    {"d","Set 2D or 3D layout", OFFSET(dimension), AV_OPT_TYPE_INT, {.i64 = 2}, 0, 3, FLAGS},
-    {"speakers","Set number of speakers(regular)", OFFSET(nb_sp), AV_OPT_TYPE_INT, {.i64=4}, 1, 10, FLAGS},
-    {"s","Set number of speakers(regular)", OFFSET(nb_sp), AV_OPT_TYPE_INT, {.i64=4}, 1, 10, FLAGS},
     {"enable_shelf","Set if shelf filtering is required",OFFSET(enable_shelf), AV_OPT_TYPE_INT, {.i64=1}, 0, 1, FLAGS},
     {"e_s","Set if shelf filtering is required",OFFSET(enable_shelf), AV_OPT_TYPE_INT, {.i64=1}, 0, 1, FLAGS},
+    {"output_layout","Enter Layout of output",OFFSET(sp_layout), AV_OPT_TYPE_STRING, {.str="4.0"}, 0, 0, FLAGS},
+    {"o_l","Enter Layout of output",OFFSET(sp_layout), AV_OPT_TYPE_STRING, {.str="4.0"}, 0, 0, FLAGS},
     {NULL}
 };
 
@@ -178,9 +177,9 @@ static int query_formats(AVFilterContext *ctx)
     AmbisonicContext *s = ctx->priv;
     AVFilterFormats *formats = NULL;
     AVFilterChannelLayouts *layouts = NULL;
-    int temp;
+    uint64_t temp;
     int ret;
-
+    temp=av_get_channel_layout(s->sp_layout);
     memset(s->decode_matrix,0,22*9);
 
     //will be changed
@@ -189,22 +188,6 @@ static int query_formats(AVFilterContext *ctx)
         case 2:  s->nb_channels=2*s->order+1;                break;
         case 3:  s->nb_channels=(s->order+1)*(s->order+1);   break;
         default: s->nb_channels=2*s->order+1;
-    }
-
-    switch(s->dimension) {
-        case 2: switch(s->nb_sp) {
-            case 4:  temp=AV_CH_LAYOUT_4POINT0;       break;
-            case 5:  temp=AV_CH_LAYOUT_5POINT0;       break;
-            case 6:  temp=AV_CH_LAYOUT_6POINT0;       break;
-            case 7:  temp=AV_CH_LAYOUT_7POINT0;       break;
-            case 8:  temp=AV_CH_LAYOUT_OCTAGONAL;     break;
-            case 16: temp=AV_CH_LAYOUT_HEXADECAGONAL; break;
-            default: temp=AV_CH_LAYOUT_4POINT0;
-        } break;
-        case 3:
-            case 8 :  temp=AV_CH_LAYOUT_OCTAGONAL;     break;
-            default:  temp=AV_CH_LAYOUT_OCTAGONAL;     break;
-        break;
     }
 
     ret = ff_add_format(&formats, AV_SAMPLE_FMT_FLTP);
