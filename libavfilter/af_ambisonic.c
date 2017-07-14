@@ -37,14 +37,14 @@ typedef struct Cache {
 } Cache;
 
 enum Layouts2D {
-    MONO,
-    STEREO,
-    TRIANGLE,
-    SQUARE,
-    PENTAGON,
-    HEXAGON,
-    HEPTAGON,
-    OCTAGON
+    MONO     = 1,
+    STEREO   = 2 ,
+    TRIANGLE = 3 ,
+    SQUARE   = 4 ,
+    PENTAGON = 5 ,
+    HEXAGON  = 6 ,
+    HEPTAGON = 7 ,
+    OCTAGON  = 8
 };
 
 enum Layouts3D {
@@ -180,10 +180,15 @@ static int query_formats(AVFilterContext *ctx)
     uint64_t temp;
     int ret;
     temp=av_get_channel_layout(s->sp_layout);
+    s->nb_sp=av_get_channel_layout_nb_channels(temp);
+    printf("%d",s->nb_sp);
+    int a;
+    scanf("%d",&a);
     memset(s->decode_matrix,0,22*9);
 
     //will be changed
     s->order=1;//first order ambisonics
+    // s->dimension=2;
     switch(s->dimension) {
         case 2:  s->nb_channels=2*s->order+1;                break;
         case 3:  s->nb_channels=(s->order+1)*(s->order+1);   break;
@@ -386,11 +391,12 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     for(i=0;i<s->nb_sp;i++) {
         c[i]=(float *)out_buf->extended_data[i];
     }
-
+    s->dimension=2;
     for(itr=0;itr<in->nb_samples;itr++) {
         for(i=0;i<s->nb_sp;i++) {
             if(s->dimension==2){
                 calc[i]=multiply(ambisonic_matrix2d[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
+                // printf("%f\n",calc[i]);
             } else {
                 calc[i]=multiply(ambisonic_matrix3d[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
             }
