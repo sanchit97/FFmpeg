@@ -17,12 +17,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #include "libavutil/avstring.h"
-#include "libavutil/channel_layout.h"
+#include "libavutil/channel_layout.h"  //no
 #include "libavutil/opt.h"
 #include "libavutil/avassert.h"
-#include "audio.h"
-#include "avfilter.h"
-#include "formats.h"
+#include "audio.h" //no
+#include "avfilter.h" //no
+#include "formats.h" //no
 #include "internal.h"
 #include <math.h>
 #include <stdio.h>
@@ -121,8 +121,8 @@ static const struct {
 
 static const struct {
     float matrix[22][9];
-} ambisonic_matrix3d[]= {
-    [8]={
+} ambisonic_matrix3d1order[]= {
+    [CUBE]={
         .matrix={
             {0.14269, 0.13909,  0.28611, 0.13909},
             {0.14269, 0.13909, -0.28611, 0.13909},
@@ -135,6 +135,41 @@ static const struct {
         },
     },
 };
+
+static const struct {
+    float matrix[22][9];
+} ambisonic_matrix3d2order[]= {
+    [CUBE]={
+        .matrix={
+            {0.14269, 0.13909,  0.28611, 0.13909},
+            {0.14269, 0.13909, -0.28611, 0.13909},
+            {0.14269,-0.13909,  0.28611, 0.13909},
+            {0.14269,-0.13909, -0.28611, 0.13909},
+            {0.14269, 0.13909,  0.28611,-0.13909},
+            {0.14269, 0.13909, -0.28611,-0.13909},
+            {0.14269,-0.13909,  0.28611,-0.13909},
+            {0.14269,-0.13909, -0.28611,-0.13909},
+        },
+    },
+};
+
+static const struct {
+    float matrix[22][9];
+} ambisonic_matrix3d3order[]= {
+    [CUBE]={
+        .matrix={
+            {0.14269, 0.13909,  0.28611, 0.13909},
+            {0.14269, 0.13909, -0.28611, 0.13909},
+            {0.14269,-0.13909,  0.28611, 0.13909},
+            {0.14269,-0.13909, -0.28611, 0.13909},
+            {0.14269, 0.13909,  0.28611,-0.13909},
+            {0.14269, 0.13909, -0.28611,-0.13909},
+            {0.14269,-0.13909,  0.28611,-0.13909},
+            {0.14269,-0.13909, -0.28611,-0.13909},
+        },
+    },
+};
+
 typedef struct AmbisonicContext {
     const AVClass *class;
     enum FilterType filter_type;
@@ -179,16 +214,43 @@ static int query_formats(AVFilterContext *ctx)
     AVFilterChannelLayouts *layouts = NULL;
     uint64_t temp;
     int ret;
-    temp=av_get_channel_layout(s->sp_layout);
-    s->nb_sp=av_get_channel_layout_nb_channels(temp);
-    printf("%d",s->nb_sp);
-    int a;
-    scanf("%d",&a);
+    if(strcmp(s->sp_layout,"cube")==0)
+    {
+    	s->nb_sp=8;
+    	temp=av_get_channel_layout("octagonal");
+    }
+    else if(strcmp(s->sp_layout,"dodecahedron")==0)
+    {
+    	s->nb_sp=10;
+    	temp=av_get_channel_layout("");
+    }
+    else if(strcmp(s->sp_layout,"icosahedron")==0)
+    {
+    	s->nb_sp=20;
+    	temp=av_get_channel_layout("");
+    }
+    else
+    {
+    	temp=av_get_channel_layout(s->sp_layout);
+    	s->nb_sp=av_get_channel_layout_nb_channels(temp);
+    }
+
     memset(s->decode_matrix,0,22*9);
 
+    // printf("BLAH:%lld\n",av_get_channel_layout("stereo"));
     //will be changed
     s->order=1;//first order ambisonics
     // s->dimension=2;
+    if(strcmp(s->sp_layout,"cube")        ==0 ||
+       strcmp(s->sp_layout,"icosahedron") ==0 ||
+       strcmp(s->sp_layout,"dodecahedron")==0 ||
+       strcmp(s->sp_layout,"tetrahedron") ==0  )
+    {
+    	s->dimension=3;
+    } else {
+    	s->dimension=2;
+    }
+    // printf("input:%d",av_get_channel_layout_nb_channels(av_get_channel_layout("mono")));
     switch(s->dimension) {
         case 2:  s->nb_channels=2*s->order+1;                break;
         case 3:  s->nb_channels=(s->order+1)*(s->order+1);   break;
@@ -212,7 +274,7 @@ static int query_formats(AVFilterContext *ctx)
 
     layouts = NULL;
 
-    ret = ff_add_channel_layout(&layouts, AV_CH_LAYOUT_4POINT0);
+    ret = ff_add_channel_layout(&layouts, AV_CH_LAYOUT_4POINT0);//change this for hoa
     if (ret)
         return ret;
 
@@ -354,6 +416,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     float *c[22];
     int i;
 
+    // printf("CHANNELS:%lld\n",inlink->channel_layout);
+
     out_buf = ff_get_audio_buffer(outlink, in->nb_samples);
     if (!out_buf){
         av_frame_free(&in);
@@ -396,9 +460,16 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
         for(i=0;i<s->nb_sp;i++) {
             if(s->dimension==2){
                 calc[i]=multiply(ambisonic_matrix2d[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
-                // printf("%f\n",calc[i]);
             } else {
-                calc[i]=multiply(ambisonic_matrix3d[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
+            	switch(s->order)
+            	{
+            		case 1: calc[i]=multiply(ambisonic_matrix3d1order[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
+            				break;
+            		case 2: calc[i]=multiply(ambisonic_matrix3d2order[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
+            				break;
+            		case 3: calc[i]=multiply(ambisonic_matrix3d3order[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
+            				break;
+            	}
             }
         }
 
