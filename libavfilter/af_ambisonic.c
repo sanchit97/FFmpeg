@@ -17,18 +17,24 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #include "libavutil/avstring.h"
-#include "libavutil/channel_layout.h"  //no
+#include "libavutil/channel_layout.h"
 #include "libavutil/opt.h"
 #include "libavutil/avassert.h"
-#include "audio.h" //no
-#include "avfilter.h" //no
-#include "formats.h" //no
+#include "audio.h"
+#include "avfilter.h"
+#include "formats.h"
 #include "internal.h"
 #include <math.h>
 #include <stdio.h>
 
 enum FilterType {
     shelf
+};
+
+enum InputFormat {
+	N3D    =1,
+	SN3D   =2,
+	FURMUL =3
 };
 
 typedef struct Cache {
@@ -48,8 +54,10 @@ enum Layouts2D {
 };
 
 enum Layouts3D {
-    CUBE        =8,
-    DODECAHEDRON=20
+	OCTAHEDRON   =8,
+    CUBE         =8,
+    DODECAHEDRON =16,
+    ICOSAHEDRON  =20
 };
 
 static const struct {
@@ -173,11 +181,13 @@ static const struct {
 typedef struct AmbisonicContext {
     const AVClass *class;
     enum FilterType filter_type;
+    int scaler;
     int dimension;
     int nb_sp;
     int nb_channels;
     int order;
     int enable_shelf;
+    int enable_nf;
     double gain;
     double frequency;
     double width;
@@ -187,6 +197,7 @@ typedef struct AmbisonicContext {
     Cache *cache;
     float decode_matrix[22][9];
     char* sp_layout;
+    char* s_o;
 
 
     void (*filter)(struct AmbisonicContext *s, const void *ibuf, void *obuf, int len,
@@ -201,11 +212,27 @@ typedef struct AmbisonicContext {
 static const AVOption ambisonic_options[] = {
     {"enable_shelf","Set if shelf filtering is required",OFFSET(enable_shelf), AV_OPT_TYPE_INT, {.i64=1}, 0, 1, FLAGS},
     {"e_s","Set if shelf filtering is required",OFFSET(enable_shelf), AV_OPT_TYPE_INT, {.i64=1}, 0, 1, FLAGS},
+    {"enable_nearfield","Set if Near Field Compensation is required",OFFSET(enable_nf), AV_OPT_TYPE_INT, {.i64=0}, 0, 1, FLAGS},
+    {"e_nf","Set if Near Field Compensation is required",OFFSET(enable_nf), AV_OPT_TYPE_INT, {.i64=0}, 0, 1, FLAGS},
     {"output_layout","Enter Layout of output",OFFSET(sp_layout), AV_OPT_TYPE_STRING, {.str="4.0"}, 0, 0, FLAGS},
     {"o_l","Enter Layout of output",OFFSET(sp_layout), AV_OPT_TYPE_STRING, {.str="4.0"}, 0, 0, FLAGS},
+    {"scaling_option","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_STRING, {.str="n3d"}, 0, 0, FLAGS},
+    {"s_o","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_STRING, {.str="n3d"}, 0, 0, FLAGS},
     {NULL}
 };
 
+static int intval_scaling(char* so)
+{
+	if(strcmp(so,"n3d")==0 || strcmp(so,"N3D")==0) {
+		return 1;
+	} else if(strcmp(so,"sn3d")==0 || strcmp(so,"SN3D")==0) {
+		return 2;
+	} else if(strcmp(so,"fm")==0 || strcmp(so,"FM")==0){
+		return 3;
+	} else {
+		return 1;
+	}
+}
 
 static int query_formats(AVFilterContext *ctx)
 {
@@ -214,6 +241,9 @@ static int query_formats(AVFilterContext *ctx)
     AVFilterChannelLayouts *layouts = NULL;
     uint64_t temp;
     int ret;
+
+    s->scaler=intval_scaling(s->s_o);
+
     if(strcmp(s->sp_layout,"cube")==0)
     {
     	s->nb_sp=8;
@@ -236,8 +266,8 @@ static int query_formats(AVFilterContext *ctx)
     }
 
     memset(s->decode_matrix,0,22*9);
+    // s->not=2;
 
-    // printf("BLAH:%lld\n",av_get_channel_layout("stereo"));
     //will be changed
     s->order=1;//first order ambisonics
     // s->dimension=2;
@@ -274,7 +304,7 @@ static int query_formats(AVFilterContext *ctx)
 
     layouts = NULL;
 
-    ret = ff_add_channel_layout(&layouts, AV_CH_LAYOUT_4POINT0);//change this for hoa
+    ret = ff_add_channel_layout(&layouts, AV_CH_LAYOUT_4POINT0);
     if (ret)
         return ret;
 
