@@ -37,10 +37,6 @@ enum InputFormat {
 	FURMUL =3
 };
 
-typedef struct Cache {
-    double i1, i2;
-    double o1, o2;
-} Cache;
 
 enum Layouts2D {
     MONO     = 1,
@@ -54,11 +50,17 @@ enum Layouts2D {
 };
 
 enum Layouts3D {
+	TETRAHEDRON  =4,
 	OCTAHEDRON   =8,
     CUBE         =8,
     DODECAHEDRON =16,
     ICOSAHEDRON  =20
 };
+
+typedef struct Cache {
+    double i1, i2;
+    double o1, o2;
+} Cache;
 
 static const struct {
     float matrix[22][9];
@@ -129,7 +131,17 @@ static const struct {
 
 static const struct {
     float matrix[22][9];
-} ambisonic_matrix3d1order[]= {
+} ambisonic_matrix3d[]= {
+    [OCTAHEDRON]={
+        .matrix={
+            {0.45832,  0.41566,  0.00000,  0.13183},
+   			{0.95964,  0.41566,  0.00000, -0.36696},
+   			{0.45832, -0.41566,  0.00000,  0.13183},
+   			{0.95964, -0.41566,  0.00000, -0.36696},
+   			{0.35449,  0.00000,  0.00000,  0.23513},
+   			{0.35449,  0.00000,  0.00000,  0.23513},
+        },
+    },
     [CUBE]={
         .matrix={
             {0.14269, 0.13909,  0.28611, 0.13909},
@@ -142,38 +154,44 @@ static const struct {
             {0.14269,-0.13909, -0.28611,-0.13909},
         },
     },
-};
-
-static const struct {
-    float matrix[22][9];
-} ambisonic_matrix3d2order[]= {
-    [CUBE]={
+    [ICOSAHEDRON]={
         .matrix={
-            {0.14269, 0.13909,  0.28611, 0.13909},
-            {0.14269, 0.13909, -0.28611, 0.13909},
-            {0.14269,-0.13909,  0.28611, 0.13909},
-            {0.14269,-0.13909, -0.28611, 0.13909},
-            {0.14269, 0.13909,  0.28611,-0.13909},
-            {0.14269, 0.13909, -0.28611,-0.13909},
-            {0.14269,-0.13909,  0.28611,-0.13909},
-            {0.14269,-0.13909, -0.28611,-0.13909},
+            {0.18245, -1.6727e-34,  2.0067e-17,  2.2478e-01},
+   			{0.18245,  5.8352e-35,  4.8797e-18,  2.2478e-01},
+   			{0.21854, -2.5706e-18,  1.7303e-01,  1.5296e-01},
+   			{0.28727,  3.0478e-01,  1.7303e-01,  1.6203e-02},
+   			{0.28727, -3.0478e-01,  1.7303e-01,  1.6203e-02},
+   			{0.39847,  1.8836e-01,  1.7303e-01, -2.0508e-01},
+   			{0.39847, -1.8836e-01,  1.7303e-01, -2.0508e-01},
+   			{0.21854,  2.5706e-18, -1.7303e-01,  1.5296e-01},
+   			{0.28727,  3.0478e-01, -1.7303e-01,  1.6203e-02},
+   			{0.28727, -3.0478e-01, -1.7303e-01,  1.6203e-02},
+   			{0.39847,  1.8836e-01, -1.7303e-01, -2.0508e-01},
+   			{0.39847, -1.8836e-01, -1.7303e-01, -2.0508e-01},
         },
     },
-};
-
-static const struct {
-    float matrix[22][9];
-} ambisonic_matrix3d3order[]= {
-    [CUBE]={
+    [DODECAHEDRON]={
         .matrix={
-            {0.14269, 0.13909,  0.28611, 0.13909},
-            {0.14269, 0.13909, -0.28611, 0.13909},
-            {0.14269,-0.13909,  0.28611, 0.13909},
-            {0.14269,-0.13909, -0.28611, 0.13909},
-            {0.14269, 0.13909,  0.28611,-0.13909},
-            {0.14269, 0.13909, -0.28611,-0.13909},
-            {0.14269,-0.13909,  0.28611,-0.13909},
-            {0.14269,-0.13909, -0.28611,-0.13909},
+            {1.7725e-01,  1.0721e-16, -3.6730e-17,  1.4416e-01},
+            {1.7725e-01,  8.4733e-02,  4.8084e-19,  1.1662e-01},
+            {1.7725e-01,  1.3710e-01, -3.8973e-18,  4.4547e-02},
+            {1.7725e-01,  1.3710e-01, -1.9760e-18, -4.4547e-02},
+            {1.7725e-01,  8.4733e-02,  3.0706e-20, -1.1662e-01},
+            {1.7725e-01, -1.0415e-16, -1.5089e-19, -1.4416e-01},
+            {1.7725e-01, -8.4733e-02, -1.1427e-17,  1.1662e-01},
+            {1.7725e-01, -1.3710e-01, -9.4207e-18,  4.4547e-02},
+            {1.7725e-01, -1.3710e-01, -5.9922e-18, -4.4547e-02},
+            {1.7725e-01, -8.4733e-02, -2.4514e-18, -1.1662e-01},
+            {1.7725e-01,  3.5190e-17,  1.9356e-01,  1.1452e-01},
+            {1.7725e-01,  1.0891e-01,  1.9356e-01,  3.5389e-02},
+            {1.7725e-01,  6.7313e-02,  1.9356e-01, -9.2648e-02},
+            {1.7725e-01, -1.0891e-01,  1.9356e-01,  3.5389e-02},
+            {1.7725e-01, -6.7313e-02,  1.9356e-01, -9.2648e-02},
+            {1.7725e-01,  6.7313e-02, -1.9356e-01,  9.2648e-02},
+            {1.7725e-01,  1.0891e-01, -1.9356e-01, -3.5389e-02},
+            {1.7725e-01, -4.0103e-17, -1.9356e-01, -1.1452e-01},
+            {1.7725e-01, -1.0891e-01, -1.9356e-01, -3.5389e-02},
+            {1.7725e-01, -6.7313e-02, -1.9356e-01,  9.2648e-02},
         },
     },
 };
@@ -274,8 +292,7 @@ static int query_formats(AVFilterContext *ctx)
     if(strcmp(s->sp_layout,"cube")        ==0 ||
        strcmp(s->sp_layout,"icosahedron") ==0 ||
        strcmp(s->sp_layout,"dodecahedron")==0 ||
-       strcmp(s->sp_layout,"tetrahedron") ==0  )
-    {
+       strcmp(s->sp_layout,"tetrahedron") ==0  ) {
     	s->dimension=3;
     } else {
     	s->dimension=2;
@@ -446,7 +463,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     float *c[22];
     int i;
 
-    // printf("CHANNELS:%lld\n",inlink->channel_layout);
+    // float scalers_matrix[nb_channels][1];
+    // switch(s->)
 
     out_buf = ff_get_audio_buffer(outlink, in->nb_samples);
     if (!out_buf){
@@ -489,15 +507,15 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     for(itr=0;itr<in->nb_samples;itr++) {
         for(i=0;i<s->nb_sp;i++) {
             if(s->dimension==2){
-                calc[i]=multiply(ambisonic_matrix2d[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
+                calc[i]=multiply(ambisonic_matrix2d[s->nb_sp].matrix,i,vars,itr,3);
             } else {
             	switch(s->order)
             	{
-            		case 1: calc[i]=multiply(ambisonic_matrix3d1order[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
+            		case 1: calc[i]=multiply(ambisonic_matrix3d[s->nb_sp].matrix,i,vars,itr,4);
             				break;
-            		case 2: calc[i]=multiply(ambisonic_matrix3d2order[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
+            		case 2: calc[i]=multiply(ambisonic_matrix3d[s->nb_sp].matrix,i,vars,itr,9);
             				break;
-            		case 3: calc[i]=multiply(ambisonic_matrix3d3order[s->nb_sp].matrix,i,vars,itr,s->nb_channels);
+            		case 3: calc[i]=multiply(ambisonic_matrix3d[s->nb_sp].matrix,i,vars,itr,16);
             				break;
             	}
             }
