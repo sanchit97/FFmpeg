@@ -31,7 +31,6 @@
 #include "get_bits.h"
 #include "unary.h"
 #include "mpeg4audio.h"
-#include "bytestream.h"
 #include "bgmc.h"
 #include "bswapdsp.h"
 #include "internal.h"
@@ -762,7 +761,7 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
             }
 
             for (k = 2; k < opt_order; k++)
-                quant_cof[k] = (quant_cof[k] << 14) + (add_base << 13);
+                quant_cof[k] = (quant_cof[k] * (1 << 14)) + (add_base << 13);
         }
     }
 
@@ -867,7 +866,7 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
                     res >>= 1;
 
                     if (cur_k) {
-                        res <<= cur_k;
+                        res  *= 1 << cur_k;
                         res  |= get_bits_long(gb, cur_k);
                     }
                 }

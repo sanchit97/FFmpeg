@@ -1623,6 +1623,7 @@ Crest_factor
 Flat_factor
 Peak_count
 Bit_depth
+Dynamic_range
 
 and for Overall:
 DC_offset
@@ -1697,6 +1698,9 @@ Number of occasions (not the number of samples) that the signal attained either
 
 @item Bit depth
 Overall bit depth of audio. Number of bits used for each sample.
+
+@item Dynamic range
+Measured dynamic range of audio in dB.
 @end table
 
 @section atempo
@@ -4471,8 +4475,8 @@ Specify the duration of the generated audio stream. Not specifying this option
 results in noise with an infinite length.
 
 @item color, colour, c
-Specify the color of noise. Available noise colors are white, pink, and brown.
-Default color is white.
+Specify the color of noise. Available noise colors are white, pink, brown,
+blue and violet. Default color is white.
 
 @item seed, s
 Specify a value used to seed the PRNG.
@@ -8602,7 +8606,7 @@ It accepts the following parameters:
 @item filter_name
 The name of the frei0r effect to load. If the environment variable
 @env{FREI0R_PATH} is defined, the frei0r effect is searched for in each of the
-directories specified by the colon-separated list in @env{FREIOR_PATH}.
+directories specified by the colon-separated list in @env{FREI0R_PATH}.
 Otherwise, the standard frei0r paths are searched, in this order:
 @file{HOME/.frei0r-1/lib/}, @file{/usr/local/lib/frei0r-1/},
 @file{/usr/lib/frei0r-1/}.
@@ -9638,6 +9642,87 @@ The formula that generates the correction is:
 
 where @var{r_0} is halve of the image diagonal and @var{r_src} and @var{r_tgt} are the
 distances from the focal point in the source and target images, respectively.
+
+@section libvmaf
+
+Obtain the average VMAF (Video Multi-Method Assessment Fusion)
+score between two input videos.
+
+This filter takes two input videos.
+
+Both video inputs must have the same resolution and pixel format for
+this filter to work correctly. Also it assumes that both inputs
+have the same number of frames, which are compared one by one.
+
+The obtained average VMAF score is printed through the logging system.
+
+It requires Netflix's vmaf library (libvmaf) as a pre-requisite.
+After installing the library it can be enabled using:
+@code{./configure --enable-libvmaf}.
+If no model path is specified it uses the default model: @code{vmaf_v0.6.1.pkl}.
+
+On the below examples the input file @file{main.mpg} being processed is
+compared with the reference file @file{ref.mpg}.
+
+The filter has following options:
+
+@table @option
+@item model_path
+Set the model path which is to be used for SVM.
+Default value: @code{"vmaf_v0.6.1.pkl"}
+
+@item log_path
+Set the file path to be used to store logs.
+
+@item log_fmt
+Set the format of the log file (xml or json).
+
+@item enable_transform
+Enables transform for computing vmaf.
+
+@item phone_model
+Invokes the phone model which will generate VMAF scores higher than in the
+regular model, which is more suitable for laptop, TV, etc. viewing conditions.
+
+@item psnr
+Enables computing psnr along with vmaf.
+
+@item ssim
+Enables computing ssim along with vmaf.
+
+@item ms_ssim
+Enables computing ms_ssim along with vmaf.
+
+@item pool
+Set the pool method to be used for computing vmaf.
+@end table
+
+For example:
+@example
+ffmpeg -i main.mpg -i ref.mpg -lavfi libvmaf -f null -
+@end example
+
+Example with options:
+@example
+ffmpeg -i main.mpg -i ref.mpg -lavfi libvmaf="psnr=1:enable-transform=1" -f null -
+@end example
+
+@section limiter
+
+Limits the pixel components values to the specified range [min, max].
+
+The filter accepts the following options:
+
+@table @option
+@item min
+Lower bound. Defaults to the lowest allowed value for the input.
+
+@item max
+Upper bound. Defaults to the highest allowed value for the input.
+
+@item planes
+Specify which planes will be processed. Defaults to all available.
+@end table
 
 @section loop
 
@@ -16308,6 +16393,11 @@ see a y, cb and cr stripe from top to bottom.
 The sources accept the following parameters:
 
 @table @option
+
+@item alpha
+Specify the alpha (opacity) of the background, only available in the
+@code{testsrc2} source. The value must be between 0 (fully transparent) and
+255 (fully opaque, the default).
 
 @item color, c
 Specify the color of the source, only available in the @code{color}

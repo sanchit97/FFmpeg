@@ -37,24 +37,20 @@ enum InputFormat {
 	FURMUL =3
 };
 
-
-enum Layouts2D {
-    MONO     = 1,
-    STEREO   = 2 ,
-    TRIANGLE = 3 ,
-    SQUARE   = 4 ,
-    PENTAGON = 5 ,
-    HEXAGON  = 6 ,
-    HEPTAGON = 7 ,
-    OCTAGON  = 8
-};
-
-enum Layouts3D {
-	TETRAHEDRON  =4,
-	OCTAHEDRON   =8,
-    CUBE         =8,
-    DODECAHEDRON =16,
-    ICOSAHEDRON  =20
+enum Layouts {
+    MONO        ,
+    STEREO      ,
+    TRIANGLE    ,
+    SQUARE      ,
+    PENTAGON    ,
+    HEXAGON     ,
+    HEPTAGON    ,
+    OCTAGON    	,
+	TETRAHEDRON ,
+	OCTAHEDRON  ,
+    CUBE    	,
+    DODECAHEDRON,
+    ICOSAHEDRON
 };
 
 typedef struct Cache {
@@ -63,14 +59,17 @@ typedef struct Cache {
 } Cache;
 
 static const struct {
-    float matrix[22][9];
-} ambisonic_matrix2d[]= {
+	int speakers;
+    float matrix[22][15];
+} ambisonic_matrix[]= {
     [MONO]={
+    	.speakers=1,
         .matrix={
             {0.22156, 0, 0, 0},
         },
     },
     [TRIANGLE]={
+    	.speakers=3,
         .matrix={
             {0.17836, 0.32555, 0.18795},
             {0.17836, 0      ,-0.37591},
@@ -78,6 +77,7 @@ static const struct {
         },
     },
     [SQUARE]={
+    	.speakers=4,
         .matrix={
             {0.39388, 0.18690, 0.18690, 0},
             {0.39388,-0.18690, 0.18690, 0},
@@ -86,6 +86,7 @@ static const struct {
         },
     },
     [PENTAGON]={
+    	.speakers=5,
         .matrix={
             {0.20195, 0      , 0.33420, 0},
             {0.11356, 0.2901 , 0.04186, 0},
@@ -95,6 +96,7 @@ static const struct {
         },
     },
     [HEXAGON]={
+    	.speakers=6,
         .matrix={
             {0.26259, 0      ,  0.31326, 0},
             {0.26259, 0.27129,  0.15663, 0},
@@ -105,6 +107,7 @@ static const struct {
         },
     },
     [HEPTAGON]={
+    	.speakers=7,
         .matrix={
             {0.22501,-0.0    ,  0.26846, 0},
             {0.22507, 0.20989,  0.16741, 0},
@@ -116,6 +119,7 @@ static const struct {
         },
     },
     [OCTAGON]={
+    	.speakers=8,
         .matrix={
             {0.19694,  0.08991,  0.21706, 0},
             {0.19694,  0.21706,  0.08991, 0},
@@ -127,12 +131,8 @@ static const struct {
             {0.19694, -0.08991,  0.21706, 0},
         },
     },
-};
-
-static const struct {
-    float matrix[22][9];
-} ambisonic_matrix3d[]= {
     [OCTAHEDRON]={
+    	.speakers=6,
         .matrix={
             {0.45832,  0.41566,  0.00000,  0.13183},
    			{0.95964,  0.41566,  0.00000, -0.36696},
@@ -143,6 +143,7 @@ static const struct {
         },
     },
     [CUBE]={
+    	.speakers=8,
         .matrix={
             {0.14269, 0.13909,  0.28611, 0.13909},
             {0.14269, 0.13909, -0.28611, 0.13909},
@@ -155,6 +156,7 @@ static const struct {
         },
     },
     [ICOSAHEDRON]={
+    	.speakers=12,
         .matrix={
             {0.18245, -1.6727e-34,  2.0067e-17,  2.2478e-01},
    			{0.18245,  5.8352e-35,  4.8797e-18,  2.2478e-01},
@@ -171,6 +173,7 @@ static const struct {
         },
     },
     [DODECAHEDRON]={
+    	.speakers=20,
         .matrix={
             {1.7725e-01,  1.0721e-16, -3.6730e-17,  1.4416e-01},
             {1.7725e-01,  8.4733e-02,  4.8084e-19,  1.1662e-01},
@@ -196,12 +199,41 @@ static const struct {
     },
 };
 
+static const struct {
+    float matrix[4][1];
+} scaler_matrix[]= {
+    [FURMUL]={
+        .matrix={
+            {sqrt(2)},
+            {sqrt(3)},
+            {sqrt(3)},
+            {sqrt(3)},
+        },
+    },
+    [SN3D]={
+        .matrix={
+            {sqrt(2*floor(sqrt(0))+1)},
+            {sqrt(2*floor(sqrt(1))+1)},
+            {sqrt(2*floor(sqrt(2))+1)},
+            {sqrt(2*floor(sqrt(3))+1)},
+        },
+    },
+    [N3D]={
+        .matrix={
+            {1},
+            {1},
+            {1},
+            {1},
+        },
+    },
+};
+
 typedef struct AmbisonicContext {
     const AVClass *class;
     enum FilterType filter_type;
     int scaler;
     int dimension;
-    int nb_sp;
+    enum Layouts lyt;
     int nb_channels;
     int order;
     int enable_shelf;
@@ -232,8 +264,8 @@ static const AVOption ambisonic_options[] = {
     {"e_s","Set if shelf filtering is required",OFFSET(enable_shelf), AV_OPT_TYPE_INT, {.i64=1}, 0, 1, FLAGS},
     {"enable_nearfield","Set if Near Field Compensation is required",OFFSET(enable_nf), AV_OPT_TYPE_INT, {.i64=0}, 0, 1, FLAGS},
     {"e_nf","Set if Near Field Compensation is required",OFFSET(enable_nf), AV_OPT_TYPE_INT, {.i64=0}, 0, 1, FLAGS},
-    {"output_layout","Enter Layout of output",OFFSET(sp_layout), AV_OPT_TYPE_STRING, {.str="4.0"}, 0, 0, FLAGS},
-    {"o_l","Enter Layout of output",OFFSET(sp_layout), AV_OPT_TYPE_STRING, {.str="4.0"}, 0, 0, FLAGS},
+    {"output_layout","Enter Layout of output",OFFSET(lyt), AV_OPT_TYPE_INT, {.i64=SQUARE}, MONO, DODECAHEDRON, FLAGS,"lyt"},
+    {"o_l","Enter Layout of output",OFFSET(lyt), AV_OPT_TYPE_INT, {.i64=SQUARE}, MONO, DODECAHEDRON, FLAGS,"lyt"},
     {"scaling_option","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_STRING, {.str="n3d"}, 0, 0, FLAGS},
     {"s_o","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_STRING, {.str="n3d"}, 0, 0, FLAGS},
     {NULL}
@@ -262,42 +294,50 @@ static int query_formats(AVFilterContext *ctx)
 
     s->scaler=intval_scaling(s->s_o);
 
-    if(strcmp(s->sp_layout,"cube")==0)
-    {
-    	s->nb_sp=8;
-    	temp=av_get_channel_layout("octagonal");
-    }
-    else if(strcmp(s->sp_layout,"dodecahedron")==0)
-    {
-    	s->nb_sp=10;
-    	temp=av_get_channel_layout("");
-    }
-    else if(strcmp(s->sp_layout,"icosahedron")==0)
-    {
-    	s->nb_sp=20;
-    	temp=av_get_channel_layout("");
-    }
-    else
-    {
-    	temp=av_get_channel_layout(s->sp_layout);
-    	s->nb_sp=av_get_channel_layout_nb_channels(temp);
-    }
+    printf("LAYOUT:::%d",s->lyt);
+    temp=av_get_channel_layout("6.0");
+    // if(strcmp(s->sp_layout,"octahedron")==0) {
+    // 	temp=av_get_channel_layout("6.0");
+    // 	s->lyt=OCTAHEDRON;
+    // } else if(strcmp(s->sp_layout,"cube")==0) {
+    // 	temp=av_get_channel_layout("octagonal");
+    // 	s->lyt=CUBE;
+    // } else if(strcmp(s->sp_layout,"dodecahedron")==0) {
+    // 	temp=av_get_channel_layout("");
+    // 	s->lyt=DODECAHEDRON;
+    // } else if(strcmp(s->sp_layout,"icosahedron")==0) {
+    // 	temp=av_get_channel_layout("");
+    // 	s->lyt=ICOSAHEDRON;
+    // } else {
+    // 	temp=av_get_channel_layout(s->sp_layout);
+    // 	switch(av_get_channel_layout_nb_channels(temp)) {
+    // 		case 1:  s->lyt = MONO;      break;
+    // 		case 2:  s->lyt = STEREO;    break;
+    // 		case 3:  s->lyt = TRIANGLE;  break;
+    // 		case 4:  s->lyt = SQUARE;    break;
+    // 		case 5:  s->lyt = PENTAGON;  break;
+    // 		case 6:  s->lyt = HEXAGON;   break;
+    // 		case 7:  s->lyt = HEPTAGON;  break;
+    // 		case 8:  s->lyt = OCTAGON;   break;
+    // 		default: s->lyt = SQUARE;
+    // 	}
+    // }
 
     memset(s->decode_matrix,0,22*9);
-    // s->not=2;
 
-    //will be changed
     s->order=1;//first order ambisonics
-    // s->dimension=2;
-    if(strcmp(s->sp_layout,"cube")        ==0 ||
-       strcmp(s->sp_layout,"icosahedron") ==0 ||
-       strcmp(s->sp_layout,"dodecahedron")==0 ||
-       strcmp(s->sp_layout,"tetrahedron") ==0  ) {
-    	s->dimension=3;
-    } else {
-    	s->dimension=2;
-    }
+
+    // if(strcmp(s->sp_layout,"cube")        ==0 ||
+    //    strcmp(s->sp_layout,"icosahedron") ==0 ||
+    //    strcmp(s->sp_layout,"dodecahedron")==0 ||
+    //    strcmp(s->sp_layout,"tetrahedron") ==0  ) {
+    // 	s->dimension=3;
+    // } else {
+    // 	s->dimension=2;
+    // }
+
     // printf("input:%d",av_get_channel_layout_nb_channels(av_get_channel_layout("mono")));
+    s->dimension=2;
     switch(s->dimension) {
         case 2:  s->nb_channels=2*s->order+1;                break;
         case 3:  s->nb_channels=(s->order+1)*(s->order+1);   break;
@@ -441,7 +481,7 @@ static int config_output(AVFilterLink *outlink)
     return 0;
 }
 
-static float multiply(const float decode_matrix[22][9],int row, float *vars[22], int sample_no, int nb_channels)
+static float multiply(const float decode_matrix[22][15],int row, float *vars[22], int sample_no, int nb_channels)
 {
     float sum=0;
     int j;
@@ -462,9 +502,6 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     float calc[22]={0};
     float *c[22];
     int i;
-
-    // float scalers_matrix[nb_channels][1];
-    // switch(s->)
 
     out_buf = ff_get_audio_buffer(outlink, in->nb_samples);
     if (!out_buf){
@@ -500,29 +537,33 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
         vars[i]=(float*)in->extended_data[i];
     }
 
-    for(i=0;i<s->nb_sp;i++) {
+    for(i=0;i<ambisonic_matrix[s->lyt].speakers;i++) {
         c[i]=(float *)out_buf->extended_data[i];
     }
-    s->dimension=2;
+
     for(itr=0;itr<in->nb_samples;itr++) {
-        for(i=0;i<s->nb_sp;i++) {
+        for(i=0;i<ambisonic_matrix[s->lyt].speakers;i++) {
             if(s->dimension==2){
-                calc[i]=multiply(ambisonic_matrix2d[s->nb_sp].matrix,i,vars,itr,3);
+                calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,3);
             } else {
             	switch(s->order)
             	{
-            		case 1: calc[i]=multiply(ambisonic_matrix3d[s->nb_sp].matrix,i,vars,itr,4);
+            		case 1: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,4);
             				break;
-            		case 2: calc[i]=multiply(ambisonic_matrix3d[s->nb_sp].matrix,i,vars,itr,9);
+            		case 2: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,9);
             				break;
-            		case 3: calc[i]=multiply(ambisonic_matrix3d[s->nb_sp].matrix,i,vars,itr,16);
+            		case 3: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,16);
             				break;
             	}
             }
         }
 
-        for(i=0;i<s->nb_sp;i++) {
+        for(i=0;i<ambisonic_matrix[s->lyt].speakers;i++) {
             c[i][itr]=calc[i];
+        }
+
+        for(i=0;i<ambisonic_matrix[s->lyt].speakers;i++) {
+        	c[i][itr]*=scaler_matrix[s->scaler].matrix[0][i];
         }
     }
 

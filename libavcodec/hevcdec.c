@@ -1684,10 +1684,11 @@ static void chroma_mc_bi(HEVCContext *s, uint8_t *dst0, ptrdiff_t dststride, AVF
 static void hevc_await_progress(HEVCContext *s, HEVCFrame *ref,
                                 const Mv *mv, int y0, int height)
 {
-    int y = FFMAX(0, (mv->y >> 2) + y0 + height + 9);
+    if (s->threads_type == FF_THREAD_FRAME ) {
+        int y = FFMAX(0, (mv->y >> 2) + y0 + height + 9);
 
-    if (s->threads_type == FF_THREAD_FRAME )
         ff_thread_await_progress(&ref->tf, y, 0);
+    }
 }
 
 static void hevc_luma_mv_mvp_mode(HEVCContext *s, int x0, int y0, int nPbW,
@@ -2728,7 +2729,7 @@ static int set_side_data(HEVCContext *s)
     if (s->sei.alternative_transfer.present &&
         av_color_transfer_name(s->sei.alternative_transfer.preferred_transfer_characteristics) &&
         s->sei.alternative_transfer.preferred_transfer_characteristics != AVCOL_TRC_UNSPECIFIED) {
-        s->avctx->color_trc = s->sei.alternative_transfer.preferred_transfer_characteristics;
+        s->avctx->color_trc = out->color_trc = s->sei.alternative_transfer.preferred_transfer_characteristics;
     }
 
     return 0;
@@ -3057,7 +3058,7 @@ static int verify_md5(HEVCContext *s, AVFrame *frame)
     return 0;
 }
 
-static int hevc_decode_extradata(HEVCContext *s, uint8_t *buf, int length)
+static int hevc_decode_extradata(HEVCContext *s, uint8_t *buf, int length, int first)
 {
     int ret, i;
 
@@ -3069,7 +3070,7 @@ static int hevc_decode_extradata(HEVCContext *s, uint8_t *buf, int length)
 
     /* export stream parameters from the first SPS */
     for (i = 0; i < FF_ARRAY_ELEMS(s->ps.sps_list); i++) {
-        if (s->ps.sps_list[i]) {
+        if (first && s->ps.sps_list[i]) {
             const HEVCSPS *sps = (const HEVCSPS*)s->ps.sps_list[i]->data;
             export_stream_params(s->avctx, &s->ps, sps);
             break;
@@ -3099,7 +3100,7 @@ static int hevc_decode_frame(AVCodecContext *avctx, void *data, int *got_output,
     new_extradata = av_packet_get_side_data(avpkt, AV_PKT_DATA_NEW_EXTRADATA,
                                             &new_extradata_size);
     if (new_extradata && new_extradata_size > 0) {
-        ret = hevc_decode_extradata(s, new_extradata, new_extradata_size);
+        ret = hevc_decode_extradata(s, new_extradata, new_extradata_size, 0);
         if (ret < 0)
             return ret;
     }
@@ -3387,7 +3388,7 @@ static av_cold int hevc_decode_init(AVCodecContext *avctx)
         s->threads_number = 1;
 
     if (avctx->extradata_size > 0 && avctx->extradata) {
-        ret = hevc_decode_extradata(s, avctx->extradata, avctx->extradata_size);
+        ret = hevc_decode_extradata(s, avctx->extradata, avctx->extradata_size, 1);
         if (ret < 0) {
             hevc_decode_free(avctx);
             return ret;
