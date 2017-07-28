@@ -268,6 +268,18 @@ static const AVOption ambisonic_options[] = {
     {"o_l","Enter Layout of output",OFFSET(lyt), AV_OPT_TYPE_INT, {.i64=SQUARE}, MONO, DODECAHEDRON, FLAGS,"lyt"},
     {"scaling_option","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_STRING, {.str="n3d"}, 0, 0, FLAGS},
     {"s_o","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_STRING, {.str="n3d"}, 0, 0, FLAGS},
+    {"mono","Mono Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=MONO}, 0, 0, FLAGS,"lyt"},
+    {"stereo","Stereo Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=STEREO}, 0, 0, FLAGS,"lyt"},
+    {"triangle","Triangle Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=TRIANGLE}, 0, 0, FLAGS,"lyt"},
+    {"quad","Square Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=SQUARE}, 0, 0, FLAGS,"lyt"},
+    {"pentagon","Pentagonal Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=PENTAGON}, 0, 0, FLAGS,"lyt"},
+    {"hexagon","Hexagonal Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=HEXAGON}, 0, 0, FLAGS,"lyt"},
+    {"hepatagon","Hepatagonal Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=HEPTAGON}, 0, 0, FLAGS,"lyt"},
+    {"octagon","Octagonal Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=OCTAGON}, 0, 0, FLAGS,"lyt"},
+    {"octahedron","Octahedron Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=OCTAHEDRON}, 0, 0, FLAGS,"lyt"},
+    {"cube","Cube Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=CUBE}, 0, 0, FLAGS,"lyt"},
+    {"icosahedron","Icosahedron Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=ICOSAHEDRON}, 0, 0, FLAGS,"lyt"},
+    {"dodecahedron","Dodecahedron Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=DODECAHEDRON}, 0, 0, FLAGS,"lyt"},
     {NULL}
 };
 
@@ -294,50 +306,26 @@ static int query_formats(AVFilterContext *ctx)
 
     s->scaler=intval_scaling(s->s_o);
 
-    printf("LAYOUT:::%d",s->lyt);
-    temp=av_get_channel_layout("6.0");
-    // if(strcmp(s->sp_layout,"octahedron")==0) {
-    // 	temp=av_get_channel_layout("6.0");
-    // 	s->lyt=OCTAHEDRON;
-    // } else if(strcmp(s->sp_layout,"cube")==0) {
-    // 	temp=av_get_channel_layout("octagonal");
-    // 	s->lyt=CUBE;
-    // } else if(strcmp(s->sp_layout,"dodecahedron")==0) {
-    // 	temp=av_get_channel_layout("");
-    // 	s->lyt=DODECAHEDRON;
-    // } else if(strcmp(s->sp_layout,"icosahedron")==0) {
-    // 	temp=av_get_channel_layout("");
-    // 	s->lyt=ICOSAHEDRON;
-    // } else {
-    // 	temp=av_get_channel_layout(s->sp_layout);
-    // 	switch(av_get_channel_layout_nb_channels(temp)) {
-    // 		case 1:  s->lyt = MONO;      break;
-    // 		case 2:  s->lyt = STEREO;    break;
-    // 		case 3:  s->lyt = TRIANGLE;  break;
-    // 		case 4:  s->lyt = SQUARE;    break;
-    // 		case 5:  s->lyt = PENTAGON;  break;
-    // 		case 6:  s->lyt = HEXAGON;   break;
-    // 		case 7:  s->lyt = HEPTAGON;  break;
-    // 		case 8:  s->lyt = OCTAGON;   break;
-    // 		default: s->lyt = SQUARE;
-    // 	}
-    // }
+    switch(s->lyt) {
+        case MONO:         temp=AV_CH_LAYOUT_MONO;      s->dimension=2;  break;
+        case STEREO:       temp=AV_CH_LAYOUT_STEREO;    s->dimension=2;  break;
+        case TRIANGLE:     temp=AV_CH_LAYOUT_SURROUND;  s->dimension=2;  break;
+        case SQUARE:       temp=AV_CH_LAYOUT_4POINT0;   s->dimension=2;  break;
+        case PENTAGON:     temp=AV_CH_LAYOUT_5POINT0;   s->dimension=2;  break;
+        case HEXAGON:      temp=AV_CH_LAYOUT_6POINT0;   s->dimension=2;  break;
+        case HEPTAGON:     temp=AV_CH_LAYOUT_7POINT0;   s->dimension=2;  break;
+        case OCTAGON:      temp=AV_CH_LAYOUT_OCTAGONAL; s->dimension=2;  break;
+        case OCTAHEDRON:   temp=AV_CH_LAYOUT_6POINT0;   s->dimension=2;  break;
+        case CUBE:         temp=AV_CH_LAYOUT_OCTAGONAL; s->dimension=3;  break;
+        case ICOSAHEDRON:  temp=AV_CH_LAYOUT_4POINT0;   s->dimension=3;  break;
+        case DODECAHEDRON: temp=AV_CH_LAYOUT_4POINT0;   s->dimension=3;  break;
+        default:           temp=AV_CH_LAYOUT_4POINT0;   s->dimension=2;
+    }
 
     memset(s->decode_matrix,0,22*9);
 
     s->order=1;//first order ambisonics
 
-    // if(strcmp(s->sp_layout,"cube")        ==0 ||
-    //    strcmp(s->sp_layout,"icosahedron") ==0 ||
-    //    strcmp(s->sp_layout,"dodecahedron")==0 ||
-    //    strcmp(s->sp_layout,"tetrahedron") ==0  ) {
-    // 	s->dimension=3;
-    // } else {
-    // 	s->dimension=2;
-    // }
-
-    // printf("input:%d",av_get_channel_layout_nb_channels(av_get_channel_layout("mono")));
-    s->dimension=2;
     switch(s->dimension) {
         case 2:  s->nb_channels=2*s->order+1;                break;
         case 3:  s->nb_channels=(s->order+1)*(s->order+1);   break;
