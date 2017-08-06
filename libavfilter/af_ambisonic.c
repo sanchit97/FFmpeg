@@ -28,7 +28,8 @@
 #include <stdio.h>
 
 enum FilterType {
-    shelf
+    shelf,
+    nearfield
 };
 
 enum InputFormat {
@@ -429,6 +430,61 @@ static void shelf_flt(      AmbisonicContext *s,
     *out2 = o2;
 }
 
+static void nearfield_flt(AmbisonicContext *s, float **in,float d1, float d2,float g)
+{
+    if(d1) d1=340.0f/(d1*48e3);
+    if(d2) d2=340.0f/(d2*48e3);
+
+    float b,g1,c,d;
+    b=0.5f*d1;
+    g1=1+b;
+    c=(2*b)/g1;
+    g*=g1;
+    b=0.5f*d2;
+    g1=1+b;
+    d=(2*b)/g1;
+    g/=g1;
+
+    float x, y, z1=0;
+
+    float *input_arr[9];
+
+    for(int i=0;i<s->nb_channels;i++)
+    {
+        input_arr[i]=(float*)in[i];
+    }
+
+    //forward filter
+    if(d1) {
+        for(int i=0;i<s->nb_channels;i++)
+        {
+            for(int itr=0;itr<s->nb_channels;itr++)
+            {
+                x = g*input_arr[i][itr];
+                itr += d;
+                y=x-(d*z1)+1e-30f;
+                x=y+(c*z1);
+                z1+=y;
+                input_arr[i][itr] = x;
+            }
+        }
+    } else {
+        //inverse filter
+        for(int i=0;i<s->nb_channels;i++)
+        {
+            for(int itr=0;itr<s->nb_channels;itr++)
+            {
+                x = g*input_arr[i][itr];
+                itr += d;
+                x -= d*z1+1e-30f;
+                z1 += x;
+                input_arr[i][itr] = x;
+            }
+        }
+    }
+
+}
+
 static int config_output(AVFilterLink *outlink)
 {
     AVFilterContext *ctx    = outlink->src;
@@ -520,6 +576,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
                       &s->cache[2].o1, &s->cache[2].o2,
                       s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,3);
     }
+
+    nearfield_flt(s,(float**)in->extended_data,0.0,10.0,1.0);
 
     for(i=0;i<s->nb_channels;i++) {
         vars[i]=(float*)in->extended_data[i];
