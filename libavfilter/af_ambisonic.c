@@ -245,15 +245,19 @@ typedef struct AmbisonicContext {
     uint64_t channels;
     double a0, a1, a2;
     double b0, b1, b2;
+    double tilt;
+    double tumble;
+    double yaw;
     Cache *cache;
     float decode_matrix[22][9];
     char* sp_layout;
     char* s_o;
 
 
-    void (*filter)(struct AmbisonicContext *s, const void *ibuf, void *obuf, int len,
+    void (*filter1)(struct AmbisonicContext *s, const void *ibuf, void *obuf, int len,
                    double *i1, double *i2, double *o1, double *o2,
                    double b0, double b1, double b2, double a1, double a2, double min, double max, int channelno);
+    void (*filter2)(struct AmbisonicContext *s , float **in, float d1, float d2, float g);
 
 } AmbisonicContext;
 
@@ -269,6 +273,9 @@ static const AVOption ambisonic_options[] = {
     {"o_l","Enter Layout of output",OFFSET(lyt), AV_OPT_TYPE_INT, {.i64=SQUARE}, MONO, DODECAHEDRON, FLAGS,"lyt"},
     {"scaling_option","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_STRING, {.str="n3d"}, 0, 0, FLAGS},
     {"s_o","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_STRING, {.str="n3d"}, 0, 0, FLAGS},
+    {"tilt","Set angle for tilt(x-axis)",OFFSET(tilt),AV_OPT_TYPE_DOUBLE, {.dbl=0.0}, 0.0, 180.0, FLAGS},
+    {"tumble","Set angle for tumble(y-axis)",OFFSET(tumble),AV_OPT_TYPE_DOUBLE, {.dbl=0.0}, 0.0, 180.0, FLAGS},
+    {"yaw","Set angle for yaw(z-axis)",OFFSET(yaw),AV_OPT_TYPE_DOUBLE, {.dbl=0.0}, 0.0, 180.0, FLAGS},
     {"mono","Mono Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=MONO}, 0, 0, FLAGS,"lyt"},
     {"stereo","Stereo Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=STEREO}, 0, 0, FLAGS,"lyt"},
     {"triangle","Triangle Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=TRIANGLE}, 0, 0, FLAGS,"lyt"},
@@ -552,31 +559,33 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     }
     av_frame_copy_props(out_buf, in);
 
-    s->filter = shelf_flt;
+    s->filter1 = shelf_flt;
 
     if(s->enable_shelf) {
         // shelf filter
         // for w channel gain= 1.75
-        s->filter(s, in->extended_data[0],
+        s->filter1(s, in->extended_data[0],
                       out_buf->extended_data[0], in->nb_samples,
                       &s->cache[0].i1, &s->cache[0].i2,
                       &s->cache[0].o1, &s->cache[0].o2,
                       s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,1);
         //for x & y channel gain= -1.26
-        s->filter(s, in->extended_data[1],
+        s->filter1(s, in->extended_data[1],
                       out_buf->extended_data[1], in->nb_samples,
                       &s->cache[1].i1, &s->cache[1].i2,
                       &s->cache[1].o1, &s->cache[1].o2,
                       s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,2);
-        s->filter(s, in->extended_data[2],
+        s->filter1(s, in->extended_data[2],
                       out_buf->extended_data[2], in->nb_samples,
                       &s->cache[2].i1, &s->cache[2].i2,
                       &s->cache[2].o1, &s->cache[2].o2,
                       s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,3);
     }
 
+    s->filter2 = nearfield_flt;
+    s->filter2(s,(float**)in->extended_data,1.0,1.0,1.0);
     //parameters not yet taken input
-    nearfield_flt(s,(float**)in->extended_data,1.0,1.0,1.0);
+    // nearfield_flt(s,(float**)in->extended_data,1.0,1.0,1.0);
 
     for(i=0;i<s->nb_channels;i++) {
         vars[i]=(float*)in->extended_data[i];
