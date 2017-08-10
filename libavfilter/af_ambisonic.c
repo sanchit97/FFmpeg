@@ -38,6 +38,12 @@ enum InputFormat {
 	FURMUL =3
 };
 
+enum Rotate {
+    TILT,
+    TUMBLE,
+    YAW
+};
+
 enum Layouts {
     MONO        ,
     STEREO      ,
@@ -250,8 +256,13 @@ typedef struct AmbisonicContext {
     double yaw;
     Cache *cache;
     float decode_matrix[22][9];
+    float angle;
+    float rotate_matrix_tilt[9][9];
+    float **rotate_matrix_tumble;
+    float **rotate_matrix_yaw;
     char* sp_layout;
     char* s_o;
+    enum Rotate dir;
 
 
     void (*filter1)(struct AmbisonicContext *s, const void *ibuf, void *obuf, int len,
@@ -490,6 +501,60 @@ static void nearfield_flt(AmbisonicContext *s, float **in,float d1, float d2,flo
     }
 }
 
+static void rotate(AmbisonicContext *s,float **in, float rotate_matrix[9][9],float angle,int samples)
+{
+    for(int j=0;j<samples;j++) {
+        float sum=0;
+        for(int k=0;k<s->nb_channels;k++) {
+            for(int i=0;i<s->nb_channels;i++) {
+                sum+=(in[i][j]*rotate_matrix[k][i]);
+            }
+            in[k][j]=sum;
+        }
+    }
+}
+
+
+static void rotate_flt(AmbisonicContext *s, float **in,int dir,float angle,int samples)
+{
+    double a = (M_PI/180.0f)*angle;
+    float rotate_matrix_tilt[][9]=  {{1,  0     , 0      , 0 , 0     ,  0                  , 0                       , 0      , 0                            },
+                                     {0,  cos(a),-sin(a) , 0 , 0     ,  0                  , 0                       , 0      , 0                            },
+                                     {0,  sin(a), cos(a) , 0 , 0     ,  0                  , 0                       , 0      , 0                            },
+                                     {0,  0     , 0      , 1 , 0     ,  0                  , 0                       , 0      , 0                            },
+                                     {0,  0     , 0      , 0 , cos(a),  0                  , 0                       , -sin(a), 0                            },
+                                     {0,  0     , 0      , 0 , 0     ,  cos(2*a)           , -sqrt(3/4)*sin(2*a)     , 0      ,-(0.5)*sin(2*a)               },
+                                     {0,  0     , 0      , 0 , 0     ,  sqrt(0.75)*sin(2*a), (0.25)*(1+3*cos(2*a))   , 0      ,-sqrt(3.0/16.0)*(1-cos(2*a))  },
+                                     {0,  0     , 0      , 0 , sin(a),  0                  , 0                       , cos(a) , 0                            },
+                                     {0,  0     , 0      , 0 , 0     ,  (0.5)*sin(2*a)     , -sqrt(3/16)*(1-cos(2*a)), 0      , (0.25)*(3+cos(2*a))          }};
+
+    float rotate_matrix_tumble[][9]={{1,  0,  0       ,0      ,0      ,0       , 0                           ,0                    ,0                           },
+                                     {0,  1,  0       ,0      ,0      ,0       , 0                           ,0                    ,0                           },
+                                     {0,  0,  cos(a)  ,sin(a) ,0      ,0       , 0                           ,0                    ,0                           },
+                                     {0,  0,  -sin(a) ,cos(a) ,0      ,0       , 0                           ,0                    ,0                           },
+                                     {0,  0,  0       ,0      ,cos(a) ,-sin(a) , 0                           ,0                    ,0                           },
+                                     {0,  0,  0       ,0      ,sin(a) , cos(a) , 0                           ,0                    ,0                           },
+                                     {0,  0,  0       ,0      ,0      ,0       , (0.25)*(1+3*cos(2*a))       ,sqrt(0.75)*sin(2*a)  ,sqrt(3.0/16.0)*(1-cos(2*a)) },
+                                     {0,  0,  0       ,0      ,0      ,0       ,-sqrt(0.75)*sin(2*a)         ,cos(2*a)             ,(0.5)*sin(2*a)              },
+                                     {0,  0,  0       ,0      ,0      ,0       , sqrt(3.0/16.0)*(1-cos(2*a)) ,-(0.5)*sin(2*a)      ,(0.25)*(3+cos(2*a))         }};
+
+    float rotate_matrix_yaw[][9]=   {{1,  0     , 0     , 0      ,  0          , 0         , 0       , 0      , 0        },
+                                     {0,  cos(a), 0     , sin(a) ,  0          , 0         , 0       , 0      , 0        },
+                                     {0,  0     , 1     , 0      ,  0          , 0         , 0       , 0      , 0        },
+                                     {0, -sin(a), 0     , cos(a) ,  0          , 0         , 0       , 0      , 0        },
+                                     {0,  0     , 0     , 0      ,  cos(2*a)   , 0         , 0       , 0      , sin(2*a) },
+                                     {0,  0     , 0     , 0      ,  0          , cos(a)    , 0       ,sin(a)  , 0        },
+                                     {0,  0     , 0     , 0      ,  0          , 0         , 1       , 0      , 0        },
+                                     {0,  0     , 0     , 0      ,  0          , -sin(a)   , 0       , cos(a) , 0        },
+                                     {0,  0     , 0     , 0      ,  -sin(2*a)  , 0         , 0       , 0      , cos(2*a) }};
+    switch(s->dir)
+    {
+        case TILT:   rotate(s,in,rotate_matrix_tilt,angle,samples);      break;
+        case TUMBLE: rotate(s,in,rotate_matrix_tumble,angle,samples); break;
+        case YAW:    rotate(s,in,rotate_matrix_yaw,angle,samples);    break;
+    }
+}
+
 static int config_output(AVFilterLink *outlink)
 {
     AVFilterContext *ctx    = outlink->src;
@@ -526,6 +591,10 @@ static int config_output(AVFilterLink *outlink)
         return AVERROR(ENOMEM);
 
     memset(s->cache, 0, sizeof(Cache) * inlink->channels);
+
+    if(s->tilt)   {s->dir=TILT;   s->angle=s->tilt;  }
+    if(s->tumble) {s->dir=TUMBLE; s->angle=s->tumble;}
+    if(s->yaw)    {s->dir=YAW;    s->angle=s->yaw;  }
 
     return 0;
 }
@@ -583,9 +652,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     }
 
     s->filter2 = nearfield_flt;
-    s->filter2(s,(float**)in->extended_data,1.0,1.0,1.0);
-    //parameters not yet taken input
-    // nearfield_flt(s,(float**)in->extended_data,1.0,1.0,1.0);
+    s->filter2(s,(float **)in->extended_data,1.0,1.0,1.0);
+    rotate_flt(s,(float **)in->extended_data,s->dir,s->angle,in->nb_samples);
 
     for(i=0;i<s->nb_channels;i++) {
         vars[i]=(float*)in->extended_data[i];
