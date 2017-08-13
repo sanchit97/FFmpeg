@@ -238,7 +238,6 @@ static const struct {
 typedef struct AmbisonicContext {
     const AVClass *class;
     enum FilterType filter_type;
-    int scaler;
     int dimension;
     enum Layouts lyt;
     enum InputFormat s_o;
@@ -302,19 +301,6 @@ static const AVOption ambisonic_options[] = {
     {NULL}
 };
 
-// static int intval_scaling(char* so)
-// {
-//   if(strcmp(so,"n3d")==0 || strcmp(so,"N3D")==0) {
-//     return 1;
-//   } else if(strcmp(so,"sn3d")==0 || strcmp(so,"SN3D")==0) {
-//     return 2;
-//   } else if(strcmp(so,"fm")==0 || strcmp(so,"FM")==0){
-//     return 3;
-//   } else {
-//     return 1;
-//   }
-// }
-
 static int query_formats(AVFilterContext *ctx)
 {
     AmbisonicContext *s = ctx->priv;
@@ -322,8 +308,6 @@ static int query_formats(AVFilterContext *ctx)
     AVFilterChannelLayouts *layouts = NULL;
     uint64_t temp;
     int ret;
-
-    // s->scaler=intval_scaling(s->s_o);
 
     switch(s->lyt) {
         case MONO:         temp=AV_CH_LAYOUT_MONO;      s->dimension=2;  break;
