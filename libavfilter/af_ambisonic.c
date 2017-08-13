@@ -33,9 +33,9 @@ enum FilterType {
 };
 
 enum InputFormat {
-	N3D    =1,
-	SN3D   =2,
-	FURMUL =3
+  N3D    =1,
+  SN3D   =2,
+  FURMUL =3
 };
 
 enum Rotate {
@@ -52,10 +52,10 @@ enum Layouts {
     PENTAGON    ,
     HEXAGON     ,
     HEPTAGON    ,
-    OCTAGON    	,
-	TETRAHEDRON ,
-	OCTAHEDRON  ,
-    CUBE    	,
+    OCTAGON  ,
+  TETRAHEDRON ,
+  OCTAHEDRON  ,
+    CUBE  ,
     DODECAHEDRON,
     ICOSAHEDRON
 };
@@ -66,17 +66,17 @@ typedef struct Cache {
 } Cache;
 
 static const struct {
-	int speakers;
+  int speakers;
     float matrix[22][15];
 } ambisonic_matrix[]= {
     [MONO]={
-    	.speakers=1,
+  .speakers=1,
         .matrix={
             {0.22156, 0, 0, 0},
         },
     },
     [TRIANGLE]={
-    	.speakers=3,
+  .speakers=3,
         .matrix={
             {0.17836, 0.32555, 0.18795},
             {0.17836, 0      ,-0.37591},
@@ -84,7 +84,7 @@ static const struct {
         },
     },
     [SQUARE]={
-    	.speakers=4,
+  .speakers=4,
         .matrix={
             {0.39388, 0.18690, 0.18690, 0},
             {0.39388,-0.18690, 0.18690, 0},
@@ -93,7 +93,7 @@ static const struct {
         },
     },
     [PENTAGON]={
-    	.speakers=5,
+  .speakers=5,
         .matrix={
             {0.20195, 0      , 0.33420, 0},
             {0.11356, 0.2901 , 0.04186, 0},
@@ -103,7 +103,7 @@ static const struct {
         },
     },
     [HEXAGON]={
-    	.speakers=6,
+  .speakers=6,
         .matrix={
             {0.26259, 0      ,  0.31326, 0},
             {0.26259, 0.27129,  0.15663, 0},
@@ -114,7 +114,7 @@ static const struct {
         },
     },
     [HEPTAGON]={
-    	.speakers=7,
+  .speakers=7,
         .matrix={
             {0.22501,-0.0    ,  0.26846, 0},
             {0.22507, 0.20989,  0.16741, 0},
@@ -126,7 +126,7 @@ static const struct {
         },
     },
     [OCTAGON]={
-    	.speakers=8,
+  .speakers=8,
         .matrix={
             {0.19694,  0.08991,  0.21706, 0},
             {0.19694,  0.21706,  0.08991, 0},
@@ -139,18 +139,18 @@ static const struct {
         },
     },
     [OCTAHEDRON]={
-    	.speakers=6,
+  .speakers=6,
         .matrix={
             {0.45832,  0.41566,  0.00000,  0.13183},
-   			{0.95964,  0.41566,  0.00000, -0.36696},
-   			{0.45832, -0.41566,  0.00000,  0.13183},
-   			{0.95964, -0.41566,  0.00000, -0.36696},
-   			{0.35449,  0.00000,  0.00000,  0.23513},
-   			{0.35449,  0.00000,  0.00000,  0.23513},
+      {0.95964,  0.41566,  0.00000, -0.36696},
+      {0.45832, -0.41566,  0.00000,  0.13183},
+      {0.95964, -0.41566,  0.00000, -0.36696},
+      {0.35449,  0.00000,  0.00000,  0.23513},
+      {0.35449,  0.00000,  0.00000,  0.23513},
         },
     },
     [CUBE]={
-    	.speakers=8,
+  .speakers=8,
         .matrix={
             {0.14269, 0.13909,  0.28611, 0.13909},
             {0.14269, 0.13909, -0.28611, 0.13909},
@@ -163,24 +163,24 @@ static const struct {
         },
     },
     [ICOSAHEDRON]={
-    	.speakers=12,
+  .speakers=12,
         .matrix={
             {0.18245, -1.6727e-34,  2.0067e-17,  2.2478e-01},
-   			{0.18245,  5.8352e-35,  4.8797e-18,  2.2478e-01},
-   			{0.21854, -2.5706e-18,  1.7303e-01,  1.5296e-01},
-   			{0.28727,  3.0478e-01,  1.7303e-01,  1.6203e-02},
-   			{0.28727, -3.0478e-01,  1.7303e-01,  1.6203e-02},
-   			{0.39847,  1.8836e-01,  1.7303e-01, -2.0508e-01},
-   			{0.39847, -1.8836e-01,  1.7303e-01, -2.0508e-01},
-   			{0.21854,  2.5706e-18, -1.7303e-01,  1.5296e-01},
-   			{0.28727,  3.0478e-01, -1.7303e-01,  1.6203e-02},
-   			{0.28727, -3.0478e-01, -1.7303e-01,  1.6203e-02},
-   			{0.39847,  1.8836e-01, -1.7303e-01, -2.0508e-01},
-   			{0.39847, -1.8836e-01, -1.7303e-01, -2.0508e-01},
+      {0.18245,  5.8352e-35,  4.8797e-18,  2.2478e-01},
+      {0.21854, -2.5706e-18,  1.7303e-01,  1.5296e-01},
+      {0.28727,  3.0478e-01,  1.7303e-01,  1.6203e-02},
+      {0.28727, -3.0478e-01,  1.7303e-01,  1.6203e-02},
+      {0.39847,  1.8836e-01,  1.7303e-01, -2.0508e-01},
+      {0.39847, -1.8836e-01,  1.7303e-01, -2.0508e-01},
+      {0.21854,  2.5706e-18, -1.7303e-01,  1.5296e-01},
+      {0.28727,  3.0478e-01, -1.7303e-01,  1.6203e-02},
+      {0.28727, -3.0478e-01, -1.7303e-01,  1.6203e-02},
+      {0.39847,  1.8836e-01, -1.7303e-01, -2.0508e-01},
+      {0.39847, -1.8836e-01, -1.7303e-01, -2.0508e-01},
         },
     },
     [DODECAHEDRON]={
-    	.speakers=20,
+  .speakers=20,
         .matrix={
             {1.7725e-01,  1.0721e-16, -3.6730e-17,  1.4416e-01},
             {1.7725e-01,  8.4733e-02,  4.8084e-19,  1.1662e-01},
@@ -304,15 +304,15 @@ static const AVOption ambisonic_options[] = {
 
 static int intval_scaling(char* so)
 {
-	if(strcmp(so,"n3d")==0 || strcmp(so,"N3D")==0) {
-		return 1;
-	} else if(strcmp(so,"sn3d")==0 || strcmp(so,"SN3D")==0) {
-		return 2;
-	} else if(strcmp(so,"fm")==0 || strcmp(so,"FM")==0){
-		return 3;
-	} else {
-		return 1;
-	}
+  if(strcmp(so,"n3d")==0 || strcmp(so,"N3D")==0) {
+    return 1;
+  } else if(strcmp(so,"sn3d")==0 || strcmp(so,"SN3D")==0) {
+    return 2;
+  } else if(strcmp(so,"fm")==0 || strcmp(so,"FM")==0){
+    return 3;
+  } else {
+    return 1;
+  }
 }
 
 static int query_formats(AVFilterContext *ctx)
@@ -518,6 +518,7 @@ static void rotate(AmbisonicContext *s,float **in, float rotate_matrix[9][9],flo
 static void rotate_flt(AmbisonicContext *s, float **in,int dir,float angle,int samples)
 {
     double a = (M_PI/180.0f)*angle;
+
     float rotate_matrix_tilt[][9]=  {{1,  0     , 0      , 0 , 0     ,  0                  , 0                       , 0      , 0                            },
                                      {0,  cos(a),-sin(a) , 0 , 0     ,  0                  , 0                       , 0      , 0                            },
                                      {0,  sin(a), cos(a) , 0 , 0     ,  0                  , 0                       , 0      , 0                            },
@@ -668,15 +669,15 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
             if(s->dimension==2){
                 calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,3);
             } else {
-            	switch(s->order)
-            	{
-            		case 1: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,4);
-            				break;
-            		case 2: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,9);
-            				break;
-            		case 3: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,16);
-            				break;
-            	}
+    switch(s->order)
+    {
+      case 1: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,4);
+          break;
+      case 2: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,9);
+          break;
+      case 3: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,16);
+          break;
+    }
             }
         }
 
@@ -685,7 +686,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
         }
 
         for(i=0;i<ambisonic_matrix[s->lyt].speakers;i++) {
-        	c[i][itr]*=scaler_matrix[s->scaler].matrix[0][i];
+    c[i][itr]*=scaler_matrix[s->scaler].matrix[0][i];
         }
     }
 
