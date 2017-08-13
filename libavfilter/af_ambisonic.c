@@ -623,7 +623,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     int i;
 
     out_buf = ff_get_audio_buffer(outlink, in->nb_samples);
-    if (!out_buf){
+    if (!out_buf) {
         av_frame_free(&in);
         return AVERROR(ENOMEM);
     }
@@ -666,18 +666,17 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
 
     for(itr=0;itr<in->nb_samples;itr++) {
         for(i=0;i<ambisonic_matrix[s->lyt].speakers;i++) {
-            if(s->dimension==2){
+            if(s->dimension==2) {
                 calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,3);
             } else {
-    switch(s->order)
-    {
-      case 1: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,4);
-          break;
-      case 2: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,9);
-          break;
-      case 3: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,16);
-          break;
-    }
+                switch(s->order) {
+                    case 1: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,4);
+                        break;
+                    case 2: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,9);
+                        break;
+                    case 3: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,16);
+                        break;
+                }
             }
         }
 
@@ -686,7 +685,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
         }
 
         for(i=0;i<ambisonic_matrix[s->lyt].speakers;i++) {
-    c[i][itr]*=scaler_matrix[s->scaler].matrix[0][i];
+            c[i][itr]*=scaler_matrix[s->scaler].matrix[0][i];
         }
     }
 
