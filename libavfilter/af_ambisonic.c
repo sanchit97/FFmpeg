@@ -255,9 +255,7 @@ typedef struct AmbisonicContext {
     double tumble;
     double yaw;
     Cache *cache;
-    float decode_matrix[22][9];
     float angle;
-    char* sp_layout;
     enum Rotate dir;
 
 
@@ -324,8 +322,6 @@ static int query_formats(AVFilterContext *ctx)
         case DODECAHEDRON: temp=AV_CH_LAYOUT_4POINT0;   s->dimension=3;  break;
         default:           temp=AV_CH_LAYOUT_4POINT0;   s->dimension=2;
     }
-
-    memset(s->decode_matrix,0,22*9);
 
     s->order=1;//first order ambisonics
 
@@ -540,6 +536,17 @@ static void rotate_flt(AmbisonicContext *s, float **in,int dir,float angle,int s
     }
 }
 
+
+static float multiply(const float decode_matrix[22][15],int row, float *vars[22], int sample_no, int nb_channels)
+{
+    float sum=0;
+    int j;
+    for(j=0;j<nb_channels;j++) {
+        sum+=(decode_matrix[row][j]*vars[j][sample_no]);
+    }
+    return sum;
+}
+
 static int config_output(AVFilterLink *outlink)
 {
     AVFilterContext *ctx    = outlink->src;
@@ -582,16 +589,6 @@ static int config_output(AVFilterLink *outlink)
     if(s->yaw)    {s->dir=YAW;    s->angle=s->yaw;  }
 
     return 0;
-}
-
-static float multiply(const float decode_matrix[22][15],int row, float *vars[22], int sample_no, int nb_channels)
-{
-    float sum=0;
-    int j;
-    for(j=0;j<nb_channels;j++) {
-        sum+=(decode_matrix[row][j]*vars[j][sample_no]);
-    }
-    return sum;
 }
 
 static int filter_frame(AVFilterLink *inlink, AVFrame *in)
@@ -680,6 +677,13 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     if (out_buf != in)
         av_frame_free(&in);
     return ff_filter_frame(outlink, out_buf);
+
+}
+
+static av_cold void uninit(AVFilterContext *ctx)
+{
+    AmbisonicContext *s = ctx->priv;
+    av_freep(&s->cache);
 }
 
 static const AVFilterPad inputs[] = {
@@ -707,6 +711,7 @@ AVFilter ff_af_ambisonic = {
     .query_formats  = query_formats,
     .priv_size      = sizeof(AmbisonicContext),
     .priv_class     = &ambisonic_class,
+    .uninit         = uninit,
     .inputs         = inputs,
     .outputs        = outputs,
 };
