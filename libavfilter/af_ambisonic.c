@@ -244,7 +244,7 @@ typedef struct AmbisonicContext {
     int nb_channels;
     int order;
     int enable_shelf;
-    int enable_nf;
+    double e_nf, e_ni;
     double gain;
     double frequency;
     double width;
@@ -257,9 +257,6 @@ typedef struct AmbisonicContext {
     Cache *cache;
     float decode_matrix[22][9];
     float angle;
-    float rotate_matrix_tilt[9][9];
-    float **rotate_matrix_tumble;
-    float **rotate_matrix_yaw;
     char* sp_layout;
     char* s_o;
     enum Rotate dir;
@@ -278,8 +275,8 @@ typedef struct AmbisonicContext {
 static const AVOption ambisonic_options[] = {
     {"enable_shelf","Set if shelf filtering is required",OFFSET(enable_shelf), AV_OPT_TYPE_INT, {.i64=1}, 0, 1, FLAGS},
     {"e_s","Set if shelf filtering is required",OFFSET(enable_shelf), AV_OPT_TYPE_INT, {.i64=1}, 0, 1, FLAGS},
-    {"enable_nearfield","Set if Near Field Compensation is required",OFFSET(enable_nf), AV_OPT_TYPE_INT, {.i64=0}, 0, 1, FLAGS},
-    {"e_nf","Set if Near Field Compensation is required",OFFSET(enable_nf), AV_OPT_TYPE_INT, {.i64=0}, 0, 1, FLAGS},
+    {"e_nf","Set if Near Field Compensation is required/Input distance",OFFSET(e_nf), AV_OPT_TYPE_DOUBLE, {.dbl=0}, 0, 100.0, FLAGS},
+    {"e_ni","Set if Near Field Compensation is required/Output distance",OFFSET(e_ni), AV_OPT_TYPE_DOUBLE, {.dbl=0}, 0, 100.0, FLAGS},
     {"output_layout","Enter Layout of output",OFFSET(lyt), AV_OPT_TYPE_INT, {.i64=SQUARE}, MONO, DODECAHEDRON, FLAGS,"lyt"},
     {"o_l","Enter Layout of output",OFFSET(lyt), AV_OPT_TYPE_INT, {.i64=SQUARE}, MONO, DODECAHEDRON, FLAGS,"lyt"},
     {"scaling_option","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_STRING, {.str="n3d"}, 0, 0, FLAGS},
@@ -631,6 +628,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
 
     s->filter1 = shelf_flt;
 
+    if(s->lyt==MONO) s->enable_shelf=0;
     if(s->enable_shelf) {
         // shelf filter
         // for w channel gain= 1.75
@@ -639,7 +637,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
                       &s->cache[0].i1, &s->cache[0].i2,
                       &s->cache[0].o1, &s->cache[0].o2,
                       s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,1);
-        //for x & y channel gain= -1.26
+        // for x & y channel gain= -1.26
         s->filter1(s, in->extended_data[1],
                       out_buf->extended_data[1], in->nb_samples,
                       &s->cache[1].i1, &s->cache[1].i2,
@@ -653,8 +651,10 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     }
 
     s->filter2 = nearfield_flt;
-    s->filter2(s,(float **)in->extended_data,1.0,1.0,1.0);
-    rotate_flt(s,(float **)in->extended_data,s->dir,s->angle,in->nb_samples);
+    if(s->e_nf && s->e_ni) {
+        s->filter2(s,(float **)in->extended_data,s->e_nf,s->e_ni,1.0);
+        rotate_flt(s,(float **)in->extended_data,s->dir,s->angle,in->nb_samples);
+    }
 
     for(i=0;i<s->nb_channels;i++) {
         vars[i]=(float*)in->extended_data[i];
