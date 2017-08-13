@@ -33,9 +33,9 @@ enum FilterType {
 };
 
 enum InputFormat {
-  N3D    =1,
-  SN3D   =2,
-  FURMUL =3
+  N3D    ,
+  SN3D   ,
+  FURMUL
 };
 
 enum Rotate {
@@ -209,12 +209,12 @@ static const struct {
 static const struct {
     float matrix[4][1];
 } scaler_matrix[]= {
-    [FURMUL]={
+    [N3D]={
         .matrix={
-            {sqrt(2)},
-            {sqrt(3)},
-            {sqrt(3)},
-            {sqrt(3)},
+            {1},
+            {1},
+            {1},
+            {1},
         },
     },
     [SN3D]={
@@ -225,12 +225,12 @@ static const struct {
             {sqrt(2*floor(sqrt(3))+1)},
         },
     },
-    [N3D]={
+    [FURMUL]={
         .matrix={
-            {1},
-            {1},
-            {1},
-            {1},
+            {sqrt(2)},
+            {sqrt(3)},
+            {sqrt(3)},
+            {sqrt(3)},
         },
     },
 };
@@ -241,6 +241,7 @@ typedef struct AmbisonicContext {
     int scaler;
     int dimension;
     enum Layouts lyt;
+    enum InputFormat s_o;
     int nb_channels;
     int order;
     int enable_shelf;
@@ -258,7 +259,6 @@ typedef struct AmbisonicContext {
     float decode_matrix[22][9];
     float angle;
     char* sp_layout;
-    char* s_o;
     enum Rotate dir;
 
 
@@ -279,8 +279,8 @@ static const AVOption ambisonic_options[] = {
     {"e_ni","Set if Near Field Compensation is required/Output distance",OFFSET(e_ni), AV_OPT_TYPE_DOUBLE, {.dbl=0}, 0, 100.0, FLAGS},
     {"output_layout","Enter Layout of output",OFFSET(lyt), AV_OPT_TYPE_INT, {.i64=SQUARE}, MONO, DODECAHEDRON, FLAGS,"lyt"},
     {"o_l","Enter Layout of output",OFFSET(lyt), AV_OPT_TYPE_INT, {.i64=SQUARE}, MONO, DODECAHEDRON, FLAGS,"lyt"},
-    {"scaling_option","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_STRING, {.str="n3d"}, 0, 0, FLAGS},
-    {"s_o","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_STRING, {.str="n3d"}, 0, 0, FLAGS},
+    {"scaling_option","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_INT, {.i64=N3D}, 0, 0, FLAGS, "scl"},
+    {"s_o","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_INT, {.i64=N3D}, N3D, FURMUL, FLAGS, "scl"},
     {"tilt","Set angle for tilt(x-axis)",OFFSET(tilt),AV_OPT_TYPE_DOUBLE, {.dbl=0.0}, 0.0, 180.0, FLAGS},
     {"tumble","Set angle for tumble(y-axis)",OFFSET(tumble),AV_OPT_TYPE_DOUBLE, {.dbl=0.0}, 0.0, 180.0, FLAGS},
     {"yaw","Set angle for yaw(z-axis)",OFFSET(yaw),AV_OPT_TYPE_DOUBLE, {.dbl=0.0}, 0.0, 180.0, FLAGS},
@@ -296,21 +296,24 @@ static const AVOption ambisonic_options[] = {
     {"cube","Cube Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=CUBE}, 0, 0, FLAGS,"lyt"},
     {"icosahedron","Icosahedron Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=ICOSAHEDRON}, 0, 0, FLAGS,"lyt"},
     {"dodecahedron","Dodecahedron Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=DODECAHEDRON}, 0, 0, FLAGS,"lyt"},
+    {"n3d","N3D Scaling(Normalised)",0, AV_OPT_TYPE_CONST, {.i64=N3D}, 0, 0, FLAGS,"scl"},
+    {"sn3d","SN3D Scaling(Semi-Normalised)",0, AV_OPT_TYPE_CONST, {.i64=SN3D}, 0, 0, FLAGS,"scl"},
+    {"fm","Furse Malham Scaling",0, AV_OPT_TYPE_CONST, {.i64=FURMUL}, 0, 0, FLAGS,"scl"},
     {NULL}
 };
 
-static int intval_scaling(char* so)
-{
-  if(strcmp(so,"n3d")==0 || strcmp(so,"N3D")==0) {
-    return 1;
-  } else if(strcmp(so,"sn3d")==0 || strcmp(so,"SN3D")==0) {
-    return 2;
-  } else if(strcmp(so,"fm")==0 || strcmp(so,"FM")==0){
-    return 3;
-  } else {
-    return 1;
-  }
-}
+// static int intval_scaling(char* so)
+// {
+//   if(strcmp(so,"n3d")==0 || strcmp(so,"N3D")==0) {
+//     return 1;
+//   } else if(strcmp(so,"sn3d")==0 || strcmp(so,"SN3D")==0) {
+//     return 2;
+//   } else if(strcmp(so,"fm")==0 || strcmp(so,"FM")==0){
+//     return 3;
+//   } else {
+//     return 1;
+//   }
+// }
 
 static int query_formats(AVFilterContext *ctx)
 {
@@ -320,7 +323,7 @@ static int query_formats(AVFilterContext *ctx)
     uint64_t temp;
     int ret;
 
-    s->scaler=intval_scaling(s->s_o);
+    // s->scaler=intval_scaling(s->s_o);
 
     switch(s->lyt) {
         case MONO:         temp=AV_CH_LAYOUT_MONO;      s->dimension=2;  break;
@@ -686,7 +689,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
         }
 
         for(i=0;i<ambisonic_matrix[s->lyt].speakers;i++) {
-            c[i][itr]*=scaler_matrix[s->scaler].matrix[0][i];
+            c[i][itr]*=scaler_matrix[s->s_o].matrix[0][i];
         }
     }
 
