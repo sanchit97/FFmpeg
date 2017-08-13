@@ -643,6 +643,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
                       &s->cache[1].i1, &s->cache[1].i2,
                       &s->cache[1].o1, &s->cache[1].o2,
                       s->b0, s->b1, s->b2, s->a1, s->a2, -1.,1.,2);
+        if(s->lyt!=STEREO)
         s->filter1(s, in->extended_data[2],
                       out_buf->extended_data[2], in->nb_samples,
                       &s->cache[2].i1, &s->cache[2].i2,
