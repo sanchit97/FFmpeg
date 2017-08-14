@@ -65,6 +65,7 @@ typedef struct Cache {
     double o1, o2;
 } Cache;
 
+/*Decoding matrix for 1st order files. Similar can be done for 2nd, 3rd etc*/
 static const struct {
   int speakers;
     float matrix[22][15];
@@ -206,6 +207,7 @@ static const struct {
     },
 };
 
+/*Matrix for scaling options*/
 static const struct {
     float matrix[4][1];
 } scaler_matrix[]= {
@@ -238,31 +240,35 @@ static const struct {
 typedef struct AmbisonicContext {
     const AVClass *class;
     enum FilterType filter_type;
-    int dimension;
-    enum Layouts lyt;
-    enum InputFormat s_o;
-    int nb_channels;
-    int order;
-    int enable_shelf;
-    double e_nf, e_ni;
-    double gain;
-    double frequency;
-    double width;
-    uint64_t channels;
-    double a0, a1, a2;
-    double b0, b1, b2;
-    double tilt;
-    double tumble;
-    double yaw;
-    Cache *cache;
-    float angle;
-    enum Rotate dir;
+    int dimension;                /*2D or 3D*/
+    enum Layouts lyt;             /*Output speaker layout*/
+    enum InputFormat s_o;         /*Scaling OPtion*/
+    int nb_channels;              /*No. of channels to consider while decoding*/
+    int order;                    /*Order of ambi file*/
+    int enable_shelf;             /*Enable shelf filtering or not*/
+    double e_nf, e_ni;            /*Distances for near field filters*/
+    double gain;                  /*Gain while shelfing*/
+    double frequency;             /*Freq. of shelf filter(param)*/
+    double width;                 /*Param for shelf filter*/
+    double a0, a1, a2;            /*Internal param for shelf*/
+    double b0, b1, b2;            /*Internal param for shelf*/
+    double tilt;                  /*Angle for tilt(x) rotation*/
+    double tumble;                /*Angle for tumble(y) rotation*/
+    double yaw;                   /*Angle for yaw(z) rotation*/
+    Cache *cache;                 /*Cache area for shelf filter*/
+    float angle;                  /*Angle for rot.*/
+    enum Rotate dir;              /*Dir. for rot.*/
 
-
+    /*Func pointer for Shelf filter*/
     void (*filter1)(struct AmbisonicContext *s, const void *ibuf, void *obuf, int len,
                    double *i1, double *i2, double *o1, double *o2,
                    double b0, double b1, double b2, double a1, double a2, double min, double max, int channelno);
-    void (*filter2)(struct AmbisonicContext *s , float **in, float d1, float d2, float g);
+
+    /*Func pointer for NF filter*/
+    void (*filter2)(struct AmbisonicContext *s ,
+                    float **in,
+                    float d1, float d2,
+                    float g);
 
 } AmbisonicContext;
 
@@ -318,12 +324,15 @@ static int query_formats(AVFilterContext *ctx)
         case OCTAGON:      temp=AV_CH_LAYOUT_OCTAGONAL; s->dimension=2;  break;
         case OCTAHEDRON:   temp=AV_CH_LAYOUT_6POINT0;   s->dimension=2;  break;
         case CUBE:         temp=AV_CH_LAYOUT_OCTAGONAL; s->dimension=3;  break;
-        case ICOSAHEDRON:  temp=AV_CH_LAYOUT_4POINT0;   s->dimension=3;  break;
-        case DODECAHEDRON: temp=AV_CH_LAYOUT_4POINT0;   s->dimension=3;  break;
+        case ICOSAHEDRON:  temp=AV_CH_LAYOUT_4POINT0;   s->dimension=3;  break;  //Layout not yet available
+        case DODECAHEDRON: temp=AV_CH_LAYOUT_4POINT0;   s->dimension=3;  break;  //Layout not yet available
         default:           temp=AV_CH_LAYOUT_4POINT0;   s->dimension=2;
     }
 
-    s->order=1;//first order ambisonics
+    /*The order of ambisonic file is calculated by floor(sqrt(no.of input channels))-1.*/
+    /*This funct. is not yet in ffmpeg*/
+
+    s->order=1;//first order ambisonics as of now
 
     switch(s->dimension) {
         case 2:  s->nb_channels=2*s->order+1;                break;
@@ -428,7 +437,10 @@ static void shelf_flt(      AmbisonicContext *s,
     *out2 = o2;
 }
 
-static void nearfield_flt(AmbisonicContext *s, float **in,float d1, float d2,float g)
+static void nearfield_flt(  AmbisonicContext *s,
+                            float **in,
+                            float d1, float d2,
+                            float g)
 {
     float b,g1,c,d, x,y,z=0;
     float *input_arr[9];
@@ -436,13 +448,11 @@ static void nearfield_flt(AmbisonicContext *s, float **in,float d1, float d2,flo
     if(d1) d1=340.0f / (d1 * 48e3);
     if(d2) d2=340.0f / (d2 * 48e3);
 
-    //set param c
     b  = (d1 * 0.5);
     g1 = b+1;
     g *= g1;
     c  = (2 * b) / g1;
 
-    //set param d
     b  = (d2 * 0.5);
     g1 = b+1;
     g /= g1;
@@ -481,7 +491,10 @@ static void nearfield_flt(AmbisonicContext *s, float **in,float d1, float d2,flo
     }
 }
 
-static void rotate(AmbisonicContext *s,float **in, float rotate_matrix[9][9],float angle,int samples)
+static void rotate(         AmbisonicContext *s,
+                            float **in, float rotate_matrix[9][9],
+                            float angle,
+                            int samples)
 {
     for(int j=0;j<samples;j++) {
         float sum=0;
@@ -498,7 +511,7 @@ static void rotate(AmbisonicContext *s,float **in, float rotate_matrix[9][9],flo
 static void rotate_flt(AmbisonicContext *s, float **in,int dir,float angle,int samples)
 {
     double a = (M_PI/180.0f)*angle;
-
+    /*Rotation matrix values for x,y,z axis*/
     float rotate_matrix_tilt[][9]=  {{1,  0     , 0      , 0 , 0     ,  0                  , 0                       , 0      , 0                            },
                                      {0,  cos(a),-sin(a) , 0 , 0     ,  0                  , 0                       , 0      , 0                            },
                                      {0,  sin(a), cos(a) , 0 , 0     ,  0                  , 0                       , 0      , 0                            },
@@ -528,16 +541,16 @@ static void rotate_flt(AmbisonicContext *s, float **in,int dir,float angle,int s
                                      {0,  0     , 0     , 0      ,  0          , 0         , 1       , 0      , 0        },
                                      {0,  0     , 0     , 0      ,  0          , -sin(a)   , 0       , cos(a) , 0        },
                                      {0,  0     , 0     , 0      ,  -sin(2*a)  , 0         , 0       , 0      , cos(2*a) }};
-    switch(s->dir)
-    {
+    switch(s->dir) {
         case TILT:   rotate(s,in,rotate_matrix_tilt,angle,samples);   break;
         case TUMBLE: rotate(s,in,rotate_matrix_tumble,angle,samples); break;
         case YAW:    rotate(s,in,rotate_matrix_yaw,angle,samples);    break;
     }
 }
 
-
-static float multiply(const float decode_matrix[22][15],int row, float *vars[22], int sample_no, int nb_channels)
+/*Utility function for matrix multiplication*/
+static float multiply(const float decode_matrix[22][15],int row, float *vars[22],
+                      int sample_no, int nb_channels)
 {
     float sum=0;
     int j;
@@ -612,7 +625,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
 
     s->filter1 = shelf_flt;
 
-    if(s->lyt==MONO) s->enable_shelf=0;
+    if(s->lyt==MONO) s->enable_shelf=0; /*Shelf filtering not applicable for mono*/
     if(s->enable_shelf) {
         // shelf filter
         // for w channel gain= 1.75
@@ -638,8 +651,9 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     s->filter2 = nearfield_flt;
     if(s->e_nf && s->e_ni) {
         s->filter2(s,(float **)in->extended_data,s->e_nf,s->e_ni,1.0);
-        rotate_flt(s,(float **)in->extended_data,s->dir,s->angle,in->nb_samples);
     }
+
+    rotate_flt(s,(float **)in->extended_data,s->dir,s->angle,in->nb_samples);
 
     for(i=0;i<s->nb_channels;i++) {
         vars[i]=(float*)in->extended_data[i];
@@ -652,14 +666,14 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     for(itr=0;itr<in->nb_samples;itr++) {
         for(i=0;i<ambisonic_matrix[s->lyt].speakers;i++) {
             if(s->dimension==2) {
-                calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,3);
+                calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,s->nb_channels);
             } else {
                 switch(s->order) {
-                    case 1: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,4);
+                    case 1: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,s->nb_channels);
                         break;
-                    case 2: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,9);
+                    case 2: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,s->nb_channels);
                         break;
-                    case 3: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,16);
+                    case 3: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,s->nb_channels);
                         break;
                 }
             }
