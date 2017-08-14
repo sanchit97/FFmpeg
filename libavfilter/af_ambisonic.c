@@ -16,6 +16,7 @@
  * License along with FFmpeg; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
 #include "libavutil/avstring.h"
 #include "libavutil/channel_layout.h"
 #include "libavutil/opt.h"
@@ -305,72 +306,6 @@ static const AVOption ambisonic_options[] = {
     {NULL}
 };
 
-static int query_formats(AVFilterContext *ctx)
-{
-    AmbisonicContext *s = ctx->priv;
-    AVFilterFormats *formats = NULL;
-    AVFilterChannelLayouts *layouts = NULL;
-    uint64_t temp;
-    int ret;
-
-    switch(s->lyt) {
-        case MONO:         temp=AV_CH_LAYOUT_MONO;      s->dimension=2;  break;
-        case STEREO:       temp=AV_CH_LAYOUT_STEREO;    s->dimension=2;  break;
-        case TRIANGLE:     temp=AV_CH_LAYOUT_SURROUND;  s->dimension=2;  break;
-        case SQUARE:       temp=AV_CH_LAYOUT_4POINT0;   s->dimension=2;  break;
-        case PENTAGON:     temp=AV_CH_LAYOUT_5POINT0;   s->dimension=2;  break;
-        case HEXAGON:      temp=AV_CH_LAYOUT_6POINT0;   s->dimension=2;  break;
-        case HEPTAGON:     temp=AV_CH_LAYOUT_7POINT0;   s->dimension=2;  break;
-        case OCTAGON:      temp=AV_CH_LAYOUT_OCTAGONAL; s->dimension=2;  break;
-        case OCTAHEDRON:   temp=AV_CH_LAYOUT_6POINT0;   s->dimension=2;  break;
-        case CUBE:         temp=AV_CH_LAYOUT_OCTAGONAL; s->dimension=3;  break;
-        case ICOSAHEDRON:  temp=AV_CH_LAYOUT_4POINT0;   s->dimension=3;  break;  //Layout not yet available
-        case DODECAHEDRON: temp=AV_CH_LAYOUT_4POINT0;   s->dimension=3;  break;  //Layout not yet available
-        default:           temp=AV_CH_LAYOUT_4POINT0;   s->dimension=2;
-    }
-
-    /*The order of ambisonic file is calculated by floor(sqrt(no.of input channels))-1.*/
-    /*This funct. is not yet in ffmpeg*/
-
-    s->order=1;//first order ambisonics as of now
-
-    switch(s->dimension) {
-        case 2:  s->nb_channels=2*s->order+1;                break;
-        case 3:  s->nb_channels=(s->order+1)*(s->order+1);   break;
-        default: s->nb_channels=2*s->order+1;
-    }
-
-    ret = ff_add_format(&formats, AV_SAMPLE_FMT_FLTP);
-    if (ret)
-        return ret;
-    ret = ff_set_common_formats(ctx, formats);
-    if (ret)
-        return ret;
-
-    ret = ff_add_channel_layout(&layouts, temp);
-    if (ret)
-        return ret;
-
-    ret = ff_channel_layouts_ref(layouts, &ctx->outputs[0]->in_channel_layouts);
-    if (ret)
-        return ret;
-
-    layouts = NULL;
-
-    ret = ff_add_channel_layout(&layouts, AV_CH_LAYOUT_4POINT0);
-    if (ret)
-        return ret;
-
-    ret = ff_channel_layouts_ref(layouts, &ctx->inputs[0]->out_channel_layouts);
-    if (ret)
-        return ret;
-
-    formats = ff_all_samplerates();
-    if(!formats)
-        return AVERROR(ENOMEM);
-    return ff_set_common_samplerates(ctx, formats);
-}
-
 static void shelf_flt(      AmbisonicContext *s,
                             const void *input, void *output, int len,
                             double *in1, double *in2,
@@ -558,6 +493,72 @@ static float multiply(const float decode_matrix[22][15],int row, float *vars[22]
         sum+=(decode_matrix[row][j]*vars[j][sample_no]);
     }
     return sum;
+}
+
+static int query_formats(AVFilterContext *ctx)
+{
+    AmbisonicContext *s = ctx->priv;
+    AVFilterFormats *formats = NULL;
+    AVFilterChannelLayouts *layouts = NULL;
+    uint64_t temp;
+    int ret;
+
+    switch(s->lyt) {
+        case MONO:         temp=AV_CH_LAYOUT_MONO;      s->dimension=2;  break;
+        case STEREO:       temp=AV_CH_LAYOUT_STEREO;    s->dimension=2;  break;
+        case TRIANGLE:     temp=AV_CH_LAYOUT_SURROUND;  s->dimension=2;  break;
+        case SQUARE:       temp=AV_CH_LAYOUT_4POINT0;   s->dimension=2;  break;
+        case PENTAGON:     temp=AV_CH_LAYOUT_5POINT0;   s->dimension=2;  break;
+        case HEXAGON:      temp=AV_CH_LAYOUT_6POINT0;   s->dimension=2;  break;
+        case HEPTAGON:     temp=AV_CH_LAYOUT_7POINT0;   s->dimension=2;  break;
+        case OCTAGON:      temp=AV_CH_LAYOUT_OCTAGONAL; s->dimension=2;  break;
+        case OCTAHEDRON:   temp=AV_CH_LAYOUT_6POINT0;   s->dimension=2;  break;
+        case CUBE:         temp=AV_CH_LAYOUT_OCTAGONAL; s->dimension=3;  break;
+        case ICOSAHEDRON:  temp=AV_CH_LAYOUT_4POINT0;   s->dimension=3;  break;  //Layout not yet available
+        case DODECAHEDRON: temp=AV_CH_LAYOUT_4POINT0;   s->dimension=3;  break;  //Layout not yet available
+        default:           temp=AV_CH_LAYOUT_4POINT0;   s->dimension=2;
+    }
+
+    /*The order of ambisonic file is calculated by floor(sqrt(no.of input channels))-1.*/
+    /*This funct. is not yet in ffmpeg*/
+
+    s->order=1;//first order ambisonics as of now
+
+    switch(s->dimension) {
+        case 2:  s->nb_channels=2*s->order+1;                break;
+        case 3:  s->nb_channels=(s->order+1)*(s->order+1);   break;
+        default: s->nb_channels=2*s->order+1;
+    }
+
+    ret = ff_add_format(&formats, AV_SAMPLE_FMT_FLTP);
+    if (ret)
+        return ret;
+    ret = ff_set_common_formats(ctx, formats);
+    if (ret)
+        return ret;
+
+    ret = ff_add_channel_layout(&layouts, temp);
+    if (ret)
+        return ret;
+
+    ret = ff_channel_layouts_ref(layouts, &ctx->outputs[0]->in_channel_layouts);
+    if (ret)
+        return ret;
+
+    layouts = NULL;
+
+    ret = ff_add_channel_layout(&layouts, AV_CH_LAYOUT_4POINT0);
+    if (ret)
+        return ret;
+
+    ret = ff_channel_layouts_ref(layouts, &ctx->inputs[0]->out_channel_layouts);
+    if (ret)
+        return ret;
+
+    formats = ff_all_samplerates();
+    if(!formats)
+        return AVERROR(ENOMEM);
+    return ff_set_common_samplerates(ctx, formats);
 }
 
 static int config_output(AVFilterLink *outlink)
