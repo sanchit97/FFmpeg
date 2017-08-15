@@ -258,7 +258,6 @@ typedef struct AmbisonicContext {
     double yaw;                   /*Angle for yaw(z) rotation*/
     Cache *cache;                 /*Cache area for shelf filter*/
     float angle;                  /*Angle for rot.*/
-    enum Rotate dir;              /*Dir. for rot.*/
 
     /*Func pointer for Shelf filter*/
     void (*filter1)(struct AmbisonicContext *s, const void *ibuf, void *obuf, int len,
@@ -443,44 +442,44 @@ static void rotate(         AmbisonicContext *s,
 }
 
 
-static void rotate_flt(AmbisonicContext *s, float **in,int dir,float angle,int samples)
+static void rotate_flt(   AmbisonicContext *s, float **in,
+                          float tilt,float tumble,float yaw,
+                          int samples)
 {
-    double a = (M_PI/180.0f)*angle;
     /*Rotation matrix values for x,y,z axis*/
-    float rotate_matrix_tilt[][9]=  {{1,  0     , 0      , 0 , 0     ,  0                  , 0                       , 0      , 0                            },
-                                     {0,  cos(a),-sin(a) , 0 , 0     ,  0                  , 0                       , 0      , 0                            },
-                                     {0,  sin(a), cos(a) , 0 , 0     ,  0                  , 0                       , 0      , 0                            },
-                                     {0,  0     , 0      , 1 , 0     ,  0                  , 0                       , 0      , 0                            },
-                                     {0,  0     , 0      , 0 , cos(a),  0                  , 0                       , -sin(a), 0                            },
-                                     {0,  0     , 0      , 0 , 0     ,  cos(2*a)           , -sqrt(3/4)*sin(2*a)     , 0      ,-(0.5)*sin(2*a)               },
-                                     {0,  0     , 0      , 0 , 0     ,  sqrt(0.75)*sin(2*a), (0.25)*(1+3*cos(2*a))   , 0      ,-sqrt(3.0/16.0)*(1-cos(2*a))  },
-                                     {0,  0     , 0      , 0 , sin(a),  0                  , 0                       , cos(a) , 0                            },
-                                     {0,  0     , 0      , 0 , 0     ,  (0.5)*sin(2*a)     , -sqrt(3/16)*(1-cos(2*a)), 0      , (0.25)*(3+cos(2*a))          }};
+    float rotate_matrix_tilt[][9]=  {{1,  0        , 0         , 0 , 0        ,  0                     , 0                           , 0         , 0                             },
+                                     {0,  cos(tilt),-sin(tilt) , 0 , 0        ,  0                     , 0                           , 0         , 0                             },
+                                     {0,  sin(tilt), cos(tilt) , 0 , 0        ,  0                     , 0                           , 0         , 0                             },
+                                     {0,  0        , 0         , 1 , 0        ,  0                     , 0                           , 0         , 0                             },
+                                     {0,  0        , 0         , 0 , cos(tilt),  0                     , 0                           , -sin(tilt), 0                             },
+                                     {0,  0        , 0         , 0 , 0        ,  cos(2*tilt)           , -sqrt(3/4)*sin(2*tilt)      , 0         ,-(0.5)*sin(2*tilt)             },
+                                     {0,  0        , 0         , 0 , 0        ,  sqrt(0.75)*sin(2*tilt), (0.25)*(1+3*cos(2*tilt))    , 0         ,-sqrt(3.0/16.0)*(1-cos(2*tilt))},
+                                     {0,  0        , 0         , 0 , sin(tilt),  0                     , 0                           , cos(tilt) , 0                             },
+                                     {0,  0        , 0         , 0 , 0        ,  (0.5)*sin(2*tilt)     , -sqrt(3/16)*(1-cos(2*tilt)) , 0         , (0.25)*(3+cos(2*tilt))        }};
 
-    float rotate_matrix_tumble[][9]={{1,  0,  0       ,0      ,0      ,0       , 0                           ,0                    ,0                           },
-                                     {0,  1,  0       ,0      ,0      ,0       , 0                           ,0                    ,0                           },
-                                     {0,  0,  cos(a)  ,sin(a) ,0      ,0       , 0                           ,0                    ,0                           },
-                                     {0,  0,  -sin(a) ,cos(a) ,0      ,0       , 0                           ,0                    ,0                           },
-                                     {0,  0,  0       ,0      ,cos(a) ,-sin(a) , 0                           ,0                    ,0                           },
-                                     {0,  0,  0       ,0      ,sin(a) , cos(a) , 0                           ,0                    ,0                           },
-                                     {0,  0,  0       ,0      ,0      ,0       , (0.25)*(1+3*cos(2*a))       ,sqrt(0.75)*sin(2*a)  ,sqrt(3.0/16.0)*(1-cos(2*a)) },
-                                     {0,  0,  0       ,0      ,0      ,0       ,-sqrt(0.75)*sin(2*a)         ,cos(2*a)             ,(0.5)*sin(2*a)              },
-                                     {0,  0,  0       ,0      ,0      ,0       , sqrt(3.0/16.0)*(1-cos(2*a)) ,-(0.5)*sin(2*a)      ,(0.25)*(3+cos(2*a))         }};
+    float rotate_matrix_tumble[][9]={{1,  0,  0           ,0           ,0           ,0            , 0                                ,0                         ,0                               },
+                                     {0,  1,  0           ,0           ,0           ,0            , 0                                ,0                         ,0                               },
+                                     {0,  0,  cos(tumble) ,sin(tumble) ,0           ,0            , 0                                ,0                         ,0                               },
+                                     {0,  0,  -sin(tumble),cos(tumble) ,0           ,0            , 0                                ,0                         ,0                               },
+                                     {0,  0,  0           ,0           ,cos(tumble) ,-sin(tumble) , 0                                ,0                         ,0                               },
+                                     {0,  0,  0           ,0           ,sin(tumble) , cos(tumble) , 0                                ,0                         ,0                               },
+                                     {0,  0,  0           ,0           ,0           ,0            , (0.25)*(1+3*cos(2*tumble))       ,sqrt(0.75)*sin(2*tumble)  ,sqrt(3.0/16.0)*(1-cos(2*tumble))},
+                                     {0,  0,  0           ,0           ,0           ,0            ,-sqrt(0.75)*sin(2*tumble)         ,cos(2*tumble)             ,(0.5)*sin(2*tumble)             },
+                                     {0,  0,  0           ,0           ,0           ,0            , sqrt(3.0/16.0)*(1-cos(2*tumble)) ,-(0.5)*sin(2*tumble)      ,(0.25)*(3+cos(2*tumble))        }};
 
-    float rotate_matrix_yaw[][9]=   {{1,  0     , 0     , 0      ,  0          , 0         , 0       , 0      , 0        },
-                                     {0,  cos(a), 0     , sin(a) ,  0          , 0         , 0       , 0      , 0        },
-                                     {0,  0     , 1     , 0      ,  0          , 0         , 0       , 0      , 0        },
-                                     {0, -sin(a), 0     , cos(a) ,  0          , 0         , 0       , 0      , 0        },
-                                     {0,  0     , 0     , 0      ,  cos(2*a)   , 0         , 0       , 0      , sin(2*a) },
-                                     {0,  0     , 0     , 0      ,  0          , cos(a)    , 0       ,sin(a)  , 0        },
-                                     {0,  0     , 0     , 0      ,  0          , 0         , 1       , 0      , 0        },
-                                     {0,  0     , 0     , 0      ,  0          , -sin(a)   , 0       , cos(a) , 0        },
-                                     {0,  0     , 0     , 0      ,  -sin(2*a)  , 0         , 0       , 0      , cos(2*a) }};
-    switch(s->dir) {
-        case TILT:   rotate(s,in,rotate_matrix_tilt,angle,samples);   break;
-        case TUMBLE: rotate(s,in,rotate_matrix_tumble,angle,samples); break;
-        case YAW:    rotate(s,in,rotate_matrix_yaw,angle,samples);    break;
-    }
+    float rotate_matrix_yaw[][9]=   {{1,  0       , 0     , 0        ,  0           , 0         , 0  , 0        , 0         },
+                                     {0,  cos(yaw), 0     , sin(yaw) ,  0           , 0         , 0  , 0        , 0         },
+                                     {0,  0       , 1     , 0        ,  0           , 0         , 0  , 0        , 0         },
+                                     {0, -sin(yaw), 0     , cos(yaw) ,  0           , 0         , 0  , 0        , 0         },
+                                     {0,  0       , 0     , 0        ,  cos(2*yaw)  , 0         , 0  , 0        , sin(2*yaw)},
+                                     {0,  0       , 0     , 0        ,  0           , cos(yaw)  , 0  ,sin(yaw)  , 0         },
+                                     {0,  0       , 0     , 0        ,  0           , 0         , 1  , 0        , 0         },
+                                     {0,  0       , 0     , 0        ,  0           , -sin(yaw) , 0  , cos(yaw) , 0         },
+                                     {0,  0       , 0     , 0        ,  -sin(2*yaw) , 0         , 0  , 0        , cos(2*yaw)}};
+
+    if(tilt)    rotate(s,in,rotate_matrix_tilt,tilt,samples);
+    if(tumble)  rotate(s,in,rotate_matrix_tumble,tumble,samples);
+    if(yaw)     rotate(s,in,rotate_matrix_yaw,yaw,samples);
 }
 
 /*Utility function for matrix multiplication*/
@@ -598,9 +597,9 @@ static int config_output(AVFilterLink *outlink)
 
     memset(s->cache, 0, sizeof(Cache) * inlink->channels);
 
-    if(s->tilt)   {s->dir=TILT;   s->angle=s->tilt;  }
-    if(s->tumble) {s->dir=TUMBLE; s->angle=s->tumble;}
-    if(s->yaw)    {s->dir=YAW;    s->angle=s->yaw;  }
+    s->tilt  =(M_PI/180.0f)*s->tilt;
+    s->tumble=(M_PI/180.0f)*s->tumble;
+    s->yaw   =(M_PI/180.0f)*s->yaw;
 
     return 0;
 }
@@ -654,7 +653,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
         s->filter2(s,(float **)in->extended_data,s->e_nf,s->e_ni,1.0);
     }
 
-    rotate_flt(s,(float **)in->extended_data,s->dir,s->angle,in->nb_samples);
+    rotate_flt(s,(float **)in->extended_data,s->tilt,s->tumble,s->yaw,in->nb_samples);
 
     for(i=0;i<s->nb_channels;i++) {
         vars[i]=(float*)in->extended_data[i];
