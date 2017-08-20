@@ -27,6 +27,7 @@
 #include "internal.h"
 #include <math.h>
 #include <stdio.h>
+#define SQRT_3 1.732051
 
 enum FilterType {
     shelf,
@@ -222,18 +223,18 @@ static const struct {
     },
     [SN3D]={
         .matrix={
-            {sqrt(2*floor(sqrt(0))+1)},
-            {sqrt(2*floor(sqrt(1))+1)},
-            {sqrt(2*floor(sqrt(2))+1)},
-            {sqrt(2*floor(sqrt(3))+1)},
+            {SQRT_3},
+            {SQRT_3},
+            {0}     ,
+            {SQRT_3},
         },
     },
     [FURMUL]={
         .matrix={
-            {sqrt(2)},
-            {sqrt(3)},
-            {sqrt(3)},
-            {sqrt(3)},
+            {M_SQRT2},
+            {SQRT_3} ,
+            {SQRT_3} ,
+            {SQRT_3} ,
         },
     },
 };
@@ -276,32 +277,32 @@ typedef struct AmbisonicContext {
 #define FLAGS AV_OPT_FLAG_AUDIO_PARAM|AV_OPT_FLAG_FILTERING_PARAM
 
 static const AVOption ambisonic_options[] = {
-    {"enable_shelf","Set if shelf filtering is required",OFFSET(enable_shelf), AV_OPT_TYPE_INT, {.i64=1}, 0, 1, FLAGS},
-    {"e_s","Set if shelf filtering is required",OFFSET(enable_shelf), AV_OPT_TYPE_INT, {.i64=1}, 0, 1, FLAGS},
-    {"e_nf","Set if Near Field Compensation is required/Input distance",OFFSET(e_nf), AV_OPT_TYPE_DOUBLE, {.dbl=0}, 0, 100.0, FLAGS},
-    {"e_ni","Set if Near Field Compensation is required/Output distance",OFFSET(e_ni), AV_OPT_TYPE_DOUBLE, {.dbl=0}, 0, 100.0, FLAGS},
-    {"output_layout","Enter Layout of output",OFFSET(lyt), AV_OPT_TYPE_INT, {.i64=SQUARE}, MONO, DODECAHEDRON, FLAGS,"lyt"},
-    {"o_l","Enter Layout of output",OFFSET(lyt), AV_OPT_TYPE_INT, {.i64=SQUARE}, MONO, DODECAHEDRON, FLAGS,"lyt"},
-    {"scaling_option","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_INT, {.i64=N3D}, 0, 0, FLAGS, "scl"},
-    {"s_o","Set the input format (N3D, SN3D, Furse Malham)",OFFSET(s_o), AV_OPT_TYPE_INT, {.i64=N3D}, N3D, FURMUL, FLAGS, "scl"},
-    {"tilt","Set angle for tilt(x-axis)",OFFSET(tilt),AV_OPT_TYPE_DOUBLE, {.dbl=0.0}, 0.0, 180.0, FLAGS},
-    {"tumble","Set angle for tumble(y-axis)",OFFSET(tumble),AV_OPT_TYPE_DOUBLE, {.dbl=0.0}, 0.0, 180.0, FLAGS},
-    {"yaw","Set angle for yaw(z-axis)",OFFSET(yaw),AV_OPT_TYPE_DOUBLE, {.dbl=0.0}, 0.0, 180.0, FLAGS},
-    {"mono","Mono Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=MONO}, 0, 0, FLAGS,"lyt"},
-    {"stereo","Stereo Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=STEREO}, 0, 0, FLAGS,"lyt"},
-    {"triangle","Triangle Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=TRIANGLE}, 0, 0, FLAGS,"lyt"},
-    {"quad","Square Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=SQUARE}, 0, 0, FLAGS,"lyt"},
-    {"pentagon","Pentagonal Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=PENTAGON}, 0, 0, FLAGS,"lyt"},
-    {"hexagon","Hexagonal Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=HEXAGON}, 0, 0, FLAGS,"lyt"},
-    {"hepatagon","Hepatagonal Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=HEPTAGON}, 0, 0, FLAGS,"lyt"},
-    {"octagon","Octagonal Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=OCTAGON}, 0, 0, FLAGS,"lyt"},
-    {"octahedron","Octahedron Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=OCTAHEDRON}, 0, 0, FLAGS,"lyt"},
-    {"cube","Cube Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=CUBE}, 0, 0, FLAGS,"lyt"},
-    {"icosahedron","Icosahedron Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=ICOSAHEDRON}, 0, 0, FLAGS,"lyt"},
-    {"dodecahedron","Dodecahedron Speaker Layout",0, AV_OPT_TYPE_CONST, {.i64=DODECAHEDRON}, 0, 0, FLAGS,"lyt"},
-    {"n3d","N3D Scaling(Normalised)",0, AV_OPT_TYPE_CONST, {.i64=N3D}, 0, 0, FLAGS,"scl"},
-    {"sn3d","SN3D Scaling(Semi-Normalised)",0, AV_OPT_TYPE_CONST, {.i64=SN3D}, 0, 0, FLAGS,"scl"},
-    {"fm","Furse Malham Scaling",0, AV_OPT_TYPE_CONST, {.i64=FURMUL}, 0, 0, FLAGS,"scl"},
+    {"enable_shelf"  , "Set if shelf filtering is required"             ,OFFSET(enable_shelf), AV_OPT_TYPE_INT   , {.i64=1           } , 0   , 1           , FLAGS       },
+    {"e_s"           , "Set if shelf filtering is required"             ,OFFSET(enable_shelf), AV_OPT_TYPE_INT   , {.i64=1           } , 0   , 1           , FLAGS       },
+    {"e_nf"          , "Set Near Field Compensation(Input distance)"    ,OFFSET(e_nf)        , AV_OPT_TYPE_DOUBLE, {.dbl=0           } , 0   , 100.0       , FLAGS       },
+    {"e_ni"          , "Set Near Field Compensation(Output distance)"   ,OFFSET(e_ni)        , AV_OPT_TYPE_DOUBLE, {.dbl=0           } , 0   , 100.0       , FLAGS       },
+    {"output_layout" , "Enter Layout of output"                         ,OFFSET(lyt)         , AV_OPT_TYPE_INT   , {.i64=SQUARE      } , MONO, DODECAHEDRON, FLAGS ,"lyt"},
+    {"o_l"           , "Enter Layout of output"                         ,OFFSET(lyt)         , AV_OPT_TYPE_INT   , {.i64=SQUARE      } , MONO, DODECAHEDRON, FLAGS ,"lyt"},
+    {"scaling_option", "Set the input format (N3D, SN3D, Furse Malham)" ,OFFSET(s_o)         , AV_OPT_TYPE_INT   , {.i64=N3D         } , 0   , 0           , FLAGS ,"scl"},
+    {"s_o"           , "Set the input format (N3D, SN3D, Furse Malham)" ,OFFSET(s_o)         , AV_OPT_TYPE_INT   , {.i64=N3D         } , N3D , FURMUL      , FLAGS ,"scl"},
+    {"tilt"          , "Set angle for tilt(x-axis)"                     ,OFFSET(tilt)        , AV_OPT_TYPE_DOUBLE, {.dbl=0.0         } , 0.0 , 180.0       , FLAGS       },
+    {"tumble"        , "Set angle for tumble(y-axis)"                   ,OFFSET(tumble)      , AV_OPT_TYPE_DOUBLE, {.dbl=0.0         } , 0.0 , 180.0       , FLAGS       },
+    {"yaw"           , "Set angle for yaw(z-axis)"                      ,OFFSET(yaw)         , AV_OPT_TYPE_DOUBLE, {.dbl=0.0         } , 0.0 , 180.0       , FLAGS       },
+    {"mono"          , "Mono Speaker Layout"                            ,0                   , AV_OPT_TYPE_CONST , {.i64=MONO        } , 0   , 0           , FLAGS ,"lyt"},
+    {"stereo"        , "Stereo Speaker Layout"                          ,0                   , AV_OPT_TYPE_CONST , {.i64=STEREO      } , 0   , 0           , FLAGS ,"lyt"},
+    {"triangle"      , "Triangle Speaker Layout"                        ,0                   , AV_OPT_TYPE_CONST , {.i64=TRIANGLE    } , 0   , 0           , FLAGS ,"lyt"},
+    {"quad"          , "Square Speaker Layout"                          ,0                   , AV_OPT_TYPE_CONST , {.i64=SQUARE      } , 0   , 0           , FLAGS ,"lyt"},
+    {"pentagon"      , "Pentagonal Speaker Layout"                      ,0                   , AV_OPT_TYPE_CONST , {.i64=PENTAGON    } , 0   , 0           , FLAGS ,"lyt"},
+    {"hexagon"       , "Hexagonal Speaker Layout"                       ,0                   , AV_OPT_TYPE_CONST , {.i64=HEXAGON     } , 0   , 0           , FLAGS ,"lyt"},
+    {"hepatagon"     , "Hepatagonal Speaker Layout"                     ,0                   , AV_OPT_TYPE_CONST , {.i64=HEPTAGON    } , 0   , 0           , FLAGS ,"lyt"},
+    {"octagon"       , "Octagonal Speaker Layout"                       ,0                   , AV_OPT_TYPE_CONST , {.i64=OCTAGON     } , 0   , 0           , FLAGS ,"lyt"},
+    {"octahedron"    , "Octahedron Speaker Layout"                      ,0                   , AV_OPT_TYPE_CONST , {.i64=OCTAHEDRON  } , 0   , 0           , FLAGS ,"lyt"},
+    {"cube"          , "Cube Speaker Layout"                            ,0                   , AV_OPT_TYPE_CONST , {.i64=CUBE        } , 0   , 0           , FLAGS ,"lyt"},
+    {"icosahedron"   , "Icosahedron Speaker Layout"                     ,0                   , AV_OPT_TYPE_CONST , {.i64=ICOSAHEDRON } , 0   , 0           , FLAGS ,"lyt"},
+    {"dodecahedron"  , "Dodecahedron Speaker Layout"                    ,0                   , AV_OPT_TYPE_CONST , {.i64=DODECAHEDRON} , 0   , 0           , FLAGS ,"lyt"},
+    {"n3d"           , "N3D Scaling(Normalised)"                        ,0                   , AV_OPT_TYPE_CONST , {.i64=N3D         } , 0   , 0           , FLAGS ,"scl"},
+    {"sn3d"          , "SN3D Scaling(Semi-Normalised)"                  ,0                   , AV_OPT_TYPE_CONST , {.i64=SN3D        } , 0   , 0           , FLAGS ,"scl"},
+    {"fm"            , "Furse Malham Scaling"                           ,0                   , AV_OPT_TYPE_CONST , {.i64=FURMUL      } , 0   , 0           , FLAGS ,"scl"},
     {NULL}
 };
 
@@ -376,6 +377,7 @@ static void nearfield_flt(  AmbisonicContext *s,
                             float d1, float d2,
                             float g)
 {
+	int i,itr;
     float b,g1,c,d, x,y,z=0;
     float *input_arr[9];
 
@@ -393,15 +395,15 @@ static void nearfield_flt(  AmbisonicContext *s,
     d  = (2 * b) / g1;
 
 
-    for(int i=0;i<s->nb_channels;i++)
+    for(i=0;i<s->nb_channels;i++)
     {
         input_arr[i]=(float*)in[i];
     }
 
-    //forward filter
+    /*forward filter*/
     if(d1) {
-        for(int i=0;i<s->nb_channels;i++) {
-            for(int itr=0;itr<s->nb_channels;itr++) {
+        for(i=0;i<s->nb_channels;i++) {
+            for(itr=0;itr<s->nb_channels;itr++) {
                 x    =  g * input_arr[i][itr];
                 y    =  x - (d*z) + 1e-30f;
                 x    =  y + (c*z);
@@ -411,9 +413,9 @@ static void nearfield_flt(  AmbisonicContext *s,
                 input_arr[i][itr] = x;
             }
         }
-    } else { //inverse filter
-        for(int i=0;i<s->nb_channels;i++) {
-            for(int itr=0;itr<s->nb_channels;itr++) {
+    } else { /*inverse filter*/
+        for(i=0;i<s->nb_channels;i++) {
+            for(itr=0;itr<s->nb_channels;itr++) {
                 x   =  g * input_arr[i][itr];
                 x   -= (d*z) + 1e-30f;
                 z   += x;
@@ -430,10 +432,12 @@ static void rotate(         AmbisonicContext *s,
                             float angle,
                             int samples)
 {
-    for(int j=0;j<samples;j++) {
-        float sum=0;
-        for(int k=0;k<s->nb_channels;k++) {
-            for(int i=0;i<s->nb_channels;i++) {
+	int i,j,k;
+	float sum;
+    for(j=0;j<samples;j++) {
+        sum=0;
+        for(k=0;k<s->nb_channels;k++) {
+            for(i=0;i<s->nb_channels;i++) {
                 sum+=(in[i][j]*rotate_matrix[k][i]);
             }
             in[k][j]=sum;
@@ -671,6 +675,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
                 switch(s->order) {
                     case 1: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,s->nb_channels);
                         break;
+                    /*This will only work once we have marker for more input channels. New vals will then have to be added.*/
                     case 2: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,s->nb_channels);
                         break;
                     case 3: calc[i]=multiply(ambisonic_matrix[s->lyt].matrix,i,vars,itr,s->nb_channels);
