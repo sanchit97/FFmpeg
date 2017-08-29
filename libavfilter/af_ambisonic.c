@@ -223,9 +223,9 @@ static const struct {
     },
     [SN3D]={
         .matrix={
+            {1},
             {SQRT_3},
-            {SQRT_3},
-            {0}     ,
+            {SQRT_3}     ,
             {SQRT_3},
         },
     },
